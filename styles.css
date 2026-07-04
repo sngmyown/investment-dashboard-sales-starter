@@ -1518,3 +1518,286 @@ button,
   }
 }
 
+/* v5: 데모 첫 화면 확대 + 전체 파이차트 2.5D 입체 효과 */
+:root {
+  --donut-depth-shadow: rgba(2, 6, 23, 0.82);
+  --donut-rim-shadow: rgba(15, 23, 42, 0.88);
+}
+
+.showroom-hero {
+  grid-template-columns: minmax(0, 0.86fr) minmax(460px, 1.14fr);
+  gap: clamp(22px, 3vw, 34px);
+}
+
+.hero-dashboard-card {
+  padding: clamp(1.4rem, 2.3vw, 2.05rem);
+  gap: 20px;
+  border-radius: 2.35rem;
+}
+
+.hero-card-head {
+  padding: 0.62rem 0.5rem 0;
+}
+
+.hero-card-head span {
+  font-size: 0.94rem;
+}
+
+.hero-card-head strong {
+  margin-top: 8px;
+  font-size: clamp(2.35rem, 4.2vw, 4rem);
+  letter-spacing: -0.075em;
+}
+
+.hero-donut-shell {
+  padding: clamp(1rem, 1.8vw, 1.35rem);
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(2, 6, 23, 0.44)),
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.16), transparent 62%);
+}
+
+.hero-donut-shell .donut-wrap.large {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: clamp(16px, 2vw, 24px);
+}
+
+.hero-donut-shell .donut-wrap.large .donut {
+  width: clamp(260px, 27vw, 320px);
+}
+
+.hero-donut-shell .donut-center span {
+  font-size: 0.88rem;
+}
+
+.hero-donut-shell .donut-center strong {
+  font-size: clamp(1.16rem, 1.7vw, 1.48rem);
+}
+
+.hero-account-stack {
+  gap: 12px;
+}
+
+.hero-account-row {
+  padding: 1.05rem 1.08rem;
+  border-radius: 1.25rem;
+}
+
+.hero-account-main span {
+  font-size: 0.98rem;
+}
+
+.hero-account-main strong {
+  font-size: 1.08rem;
+}
+
+.hero-account-sub {
+  font-size: 0.9rem;
+}
+
+.hero-progress {
+  height: 9px;
+  margin-top: 12px;
+}
+
+.showroom-metrics {
+  gap: 18px;
+}
+
+.showroom-metrics .metric-card {
+  min-height: 132px;
+  padding: clamp(1.25rem, 2vw, 1.7rem);
+}
+
+.showroom-metrics .metric-card span {
+  font-size: 0.95rem;
+}
+
+.showroom-metrics .metric-card strong {
+  margin: 0.74rem 0 0.42rem;
+  font-size: clamp(1.72rem, 2.65vw, 2.75rem);
+}
+
+.showroom-metrics .metric-card small {
+  font-size: 0.88rem;
+}
+
+.composition-layout {
+  grid-template-columns: minmax(390px, 0.98fr) minmax(0, 1.52fr);
+  gap: 22px;
+}
+
+.master-donut-card {
+  padding: clamp(1.18rem, 2vw, 1.55rem);
+  border-radius: 1.45rem;
+}
+
+.master-donut-card .donut-wrap.large {
+  grid-template-columns: minmax(245px, 295px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.master-donut-card .donut-wrap.large .donut {
+  width: clamp(245px, 24vw, 295px);
+}
+
+.account-pie-grid {
+  gap: 16px;
+}
+
+.account-pie-card {
+  padding: clamp(1.05rem, 1.65vw, 1.3rem);
+  border-radius: 1.35rem;
+}
+
+.account-pie-card .donut-wrap {
+  grid-template-columns: minmax(160px, 190px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.account-pie-card .donut {
+  width: clamp(160px, 15vw, 190px);
+}
+
+.chart-panel .donut-wrap,
+.account-detail-card .donut-wrap,
+.sunburst-placeholder .donut-wrap {
+  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
+}
+
+.chart-panel .donut,
+.account-detail-card .donut,
+.sunburst-placeholder .donut {
+  width: clamp(170px, 16vw, 210px);
+}
+
+/* 모든 도넛/파이 차트에 적용되는 입체 효과 */
+.donut-wrap {
+  perspective: 1100px;
+}
+
+.donut {
+  isolation: isolate;
+  overflow: visible;
+  transform: translateZ(0);
+  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset -16px -24px 34px rgba(2, 6, 23, 0.22),
+    inset 16px 20px 36px rgba(255, 255, 255, 0.045),
+    0 10px 0 var(--donut-rim-shadow),
+    0 22px 0 rgba(2, 6, 23, 0.44),
+    0 34px 70px rgba(0, 0, 0, 0.52);
+  filter: drop-shadow(0 22px 20px rgba(2, 6, 23, 0.42));
+}
+
+.donut::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.16) 16%, transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 38%, rgba(0, 0, 0, 0.38) 82%),
+    radial-gradient(circle at 70% 76%, rgba(0, 0, 0, 0.28), transparent 44%);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.donut::after {
+  z-index: 2;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(30, 41, 59, 0.98), #0f172a 58%, #020617 100%);
+  box-shadow:
+    inset 0 3px 8px rgba(255, 255, 255, 0.06),
+    inset 0 -14px 28px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(148, 163, 184, 0.22),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.donut-center {
+  z-index: 3;
+}
+
+.donut:hover {
+  transform: translateY(-2px) scale(1.018);
+  filter: drop-shadow(0 28px 24px rgba(2, 6, 23, 0.5));
+}
+
+.donut-wrap.large .donut {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset -20px -30px 42px rgba(2, 6, 23, 0.24),
+    inset 20px 24px 42px rgba(255, 255, 255, 0.048),
+    0 13px 0 var(--donut-rim-shadow),
+    0 27px 0 rgba(2, 6, 23, 0.46),
+    0 44px 86px rgba(0, 0, 0, 0.56);
+}
+
+.donut-wrap.large .donut-center span {
+  font-size: 0.84rem;
+}
+
+.donut-wrap.large .donut-center strong {
+  font-size: clamp(1.22rem, 1.65vw, 1.55rem);
+}
+
+.legend-row {
+  padding: 0.24rem 0;
+}
+
+.legend-row i {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+@media (max-width: 1180px) {
+  .showroom-hero,
+  .composition-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-dashboard-card {
+    max-width: none;
+  }
+
+  .hero-donut-shell .donut-wrap.large,
+  .master-donut-card .donut-wrap.large {
+    grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .showroom-metrics .metric-card {
+    min-height: auto;
+  }
+
+  .hero-donut-shell .donut-wrap.large,
+  .master-donut-card .donut-wrap.large,
+  .account-pie-card .donut-wrap,
+  .chart-panel .donut-wrap,
+  .account-detail-card .donut-wrap,
+  .sunburst-placeholder .donut-wrap {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .hero-donut-shell .donut-wrap.large .donut,
+  .master-donut-card .donut-wrap.large .donut {
+    width: min(78vw, 300px);
+  }
+
+  .account-pie-card .donut,
+  .chart-panel .donut,
+  .account-detail-card .donut,
+  .sunburst-placeholder .donut {
+    width: min(68vw, 220px);
+  }
+
+  .legend-list {
+    width: 100%;
+  }
+}
