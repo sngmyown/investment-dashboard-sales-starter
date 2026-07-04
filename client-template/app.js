@@ -451,6 +451,8 @@ let state = loadInitialState();
 let activeView = "overview";
 let selectedOverviewTarget = "total";
 let editingHoldingId = null;
+let editingTradeId = null;
+let editingIncomeId = null;
 let privacyMode = false;
 
 function clone(value) {
@@ -483,8 +485,8 @@ function normalizeState(raw) {
   return {
     accounts: normalizedAccounts,
     holdings: normalizeRows(raw.holdings, accountByName, fallbackAccountId).map(normalizeHoldingRow),
-    trades: normalizeRows(raw.trades, accountByName, "swing"),
-    income: normalizeRows(raw.income, accountByName, "dividend"),
+    trades: normalizeRows(raw.trades, accountByName, "swing").map(normalizeTradeRow),
+    income: normalizeRows(raw.income, accountByName, "dividend").map(normalizeIncomeRow),
     targets: normalizeRows(raw.targets, accountByName, "long")
   };
 }
@@ -552,6 +554,20 @@ function normalizeHoldingRow(row) {
   };
 }
 
+function normalizeTradeRow(row) {
+  return {
+    ...row,
+    _id: String(row._id || row.id || createId("trade"))
+  };
+}
+
+function normalizeIncomeRow(row) {
+  return {
+    ...row,
+    _id: String(row._id || row.id || createId("income"))
+  };
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -607,6 +623,22 @@ function holdingById(holdingId) {
 
 function editingHolding() {
   return editingHoldingId ? holdingById(editingHoldingId) : null;
+}
+
+function tradeById(tradeId) {
+  return state.trades.find((trade) => String(trade._id) === String(tradeId));
+}
+
+function editingTrade() {
+  return editingTradeId ? tradeById(editingTradeId) : null;
+}
+
+function incomeById(incomeId) {
+  return state.income.find((income) => String(income._id) === String(incomeId));
+}
+
+function editingIncome() {
+  return editingIncomeId ? incomeById(editingIncomeId) : null;
 }
 
 function accountOptions(selectedAccountId) {
@@ -1377,13 +1409,26 @@ function renderTrades() {
       ${card("복기 기록", `${rows.length}건`, "진입·청산 사유 포함")}
     </section>
     <section class="panel">
-      <div class="panel-head"><h2>스윙매매 복기</h2><span>계좌 선택값이 함께 저장됩니다</span></div>
+      <div class="panel-head"><h2>스윙매매 복기</h2><span>수정 / 삭제 가능</span></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>계좌</th><th>진입일</th><th>청산일</th><th>종목</th><th>전략</th><th>손익</th><th>보유일</th><th>진입 사유</th><th>청산 사유</th></tr></thead>
+          <thead>
+            <tr>
+              <th>계좌</th>
+              <th>진입일</th>
+              <th>청산일</th>
+              <th>종목</th>
+              <th>전략</th>
+              <th>손익</th>
+              <th>보유일</th>
+              <th>진입 사유</th>
+              <th>청산 사유</th>
+              <th>관리</th>
+            </tr>
+          </thead>
           <tbody>
             ${rows.map((row) => `
-              <tr>
+              <tr class="${editingTradeId && String(editingTradeId) === String(row._id) ? "editing-row" : ""}">
                 <td>${escapeHtml(accountName(row.accountId))}</td>
                 <td>${escapeHtml(row.entryDate)}</td>
                 <td>${escapeHtml(row.exitDate || "-")}</td>
@@ -1393,14 +1438,20 @@ function renderTrades() {
                 <td class="num">${row.days ?? "-"}</td>
                 <td>${escapeHtml(row.entryReason || "-")}</td>
                 <td>${escapeHtml(row.exitReason || "-")}</td>
+                <td>
+                  <div class="table-actions">
+                    <button type="button" class="mini-button" data-edit-trade="${escapeHtml(row._id)}">수정</button>
+                    <button type="button" class="mini-button danger-mini" data-delete-trade="${escapeHtml(row._id)}">삭제</button>
+                  </div>
+                </td>
               </tr>
             `).join("")}
           </tbody>
         </table>
       </div>
     </section>
-    <section class="panel">
-      <div class="panel-head"><h2>매매 기록 직접 추가</h2><span>기본값은 스윙 계좌</span></div>
+    <section class="panel" id="trade-editor-panel">
+      <div class="panel-head"><h2>${editingTrade() ? "매매 기록 수정" : "매매 기록 직접 추가"}</h2><span>${editingTrade() ? "선택한 복기 기록을 수정합니다" : "기본값은 스윙 계좌"}</span></div>
       ${tradeForm()}
     </section>
   `;
@@ -1426,15 +1477,26 @@ function renderIncome() {
       ${Object.keys(byType).length ? barList(byType) : empty("유형별 데이터가 없습니다.")}
     </section>
     <section class="panel">
-      <div class="panel-head"><h2>배당·커버드콜 내역</h2><span>세전/세후 구분</span></div>
+      <div class="panel-head"><h2>배당·커버드콜 내역</h2><span>수정 / 삭제 가능</span></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>월</th><th>계좌</th><th>종목/계약</th><th>유형</th><th>세전</th><th>세금</th><th>세후</th></tr></thead>
+          <thead>
+            <tr>
+              <th>월</th>
+              <th>계좌</th>
+              <th>종목/계약</th>
+              <th>유형</th>
+              <th>세전</th>
+              <th>세금</th>
+              <th>세후</th>
+              <th>관리</th>
+            </tr>
+          </thead>
           <tbody>
             ${state.income.map((row) => {
               const net = Number(row.gross || 0) - Number(row.tax || 0);
               return `
-                <tr>
+                <tr class="${editingIncomeId && String(editingIncomeId) === String(row._id) ? "editing-row" : ""}">
                   <td>${escapeHtml(row.month)}</td>
                   <td>${escapeHtml(accountName(row.accountId))}</td>
                   <td>${label(row.ticker)}</td>
@@ -1442,6 +1504,12 @@ function renderIncome() {
                   <td class="num">${money(row.gross)}</td>
                   <td class="num">${money(row.tax)}</td>
                   <td class="num">${money(net)}</td>
+                  <td>
+                    <div class="table-actions">
+                      <button type="button" class="mini-button" data-edit-income="${escapeHtml(row._id)}">수정</button>
+                      <button type="button" class="mini-button danger-mini" data-delete-income="${escapeHtml(row._id)}">삭제</button>
+                    </div>
+                  </td>
                 </tr>
               `;
             }).join("")}
@@ -1449,8 +1517,8 @@ function renderIncome() {
         </table>
       </div>
     </section>
-    <section class="panel">
-      <div class="panel-head"><h2>현금흐름 직접 추가</h2><span>기본값은 배당주 투자 계좌</span></div>
+    <section class="panel" id="income-editor-panel">
+      <div class="panel-head"><h2>${editingIncome() ? "현금흐름 기록 수정" : "현금흐름 직접 추가"}</h2><span>${editingIncome() ? "선택한 배당·커버드콜 기록을 수정합니다" : "기본값은 배당주 투자 계좌"}</span></div>
       ${incomeForm()}
     </section>
   `;
@@ -1458,6 +1526,10 @@ function renderIncome() {
 
 function renderData() {
   return `
+    <section class="panel prose">
+      <h2>입력 데이터 관리 안내</h2>
+      <p>입력한 데이터는 각 표의 수정 / 삭제 버튼으로 언제든지 변경할 수 있습니다. 보유 종목은 계좌별 분석 화면에서, 스윙매매 복기와 배당·커버드콜 현금흐름은 각 모듈 화면에서 관리합니다.</p>
+    </section>
     <section class="panel">
       <div class="panel-head"><h2>계좌 설정</h2><span>고객별 계좌명 변경 가능</span></div>
       ${accountSettingsForm()}
@@ -1682,33 +1754,61 @@ function holdingForm() {
 }
 
 function tradeForm() {
+  const current = editingTrade();
+  const mode = current ? "edit" : "create";
+  const selectedAccountId = current?.accountId || "swing";
+
   return `
-    <form id="trade-form" class="form-grid">
-      <select name="accountId" required>${accountOptions("swing")}</select>
-      <input name="entryDate" type="date" required />
-      <input name="exitDate" type="date" />
-      <input name="ticker" placeholder="종목코드" required />
-      <input name="strategy" placeholder="전략" />
-      <input name="entry" type="number" step="any" placeholder="진입가" required />
-      <input name="exit" type="number" step="any" placeholder="청산가" />
-      <input name="quantity" type="number" step="any" placeholder="수량" required />
-      <input name="entryReason" placeholder="진입 사유" />
-      <input name="exitReason" placeholder="청산 사유" />
-      <button class="primary" type="submit">매매 기록 추가</button>
+    <form id="trade-form" class="form-grid record-editor ${mode === "edit" ? "editing" : ""}">
+      ${current ? `<input type="hidden" name="_id" value="${escapeHtml(current._id)}" />` : ""}
+      ${current ? `
+        <div class="form-notice">
+          <strong>매매 기록 수정 중</strong>
+          <span>${escapeHtml(current.ticker || "-")} 복기 기록을 수정하고 있습니다. 저장하면 기존 기록이 새 값으로 교체됩니다.</span>
+        </div>
+      ` : ""}
+      <select name="accountId" required>${accountOptions(selectedAccountId)}</select>
+      <input name="entryDate" type="date" value="${escapeHtml(current?.entryDate || "")}" required />
+      <input name="exitDate" type="date" value="${escapeHtml(current?.exitDate || "")}" />
+      <input name="ticker" placeholder="종목코드" value="${escapeHtml(current?.ticker || "")}" required />
+      <input name="strategy" placeholder="전략" value="${escapeHtml(current?.strategy || "")}" />
+      <input name="entry" type="number" step="any" placeholder="진입가" value="${escapeHtml(current?.entry ?? "")}" required />
+      <input name="exit" type="number" step="any" placeholder="청산가" value="${escapeHtml(current?.exit ?? "")}" />
+      <input name="quantity" type="number" step="any" placeholder="수량" value="${escapeHtml(current?.quantity ?? "")}" required />
+      <input name="entryReason" placeholder="진입 사유" value="${escapeHtml(current?.entryReason || "")}" />
+      <input name="exitReason" placeholder="청산 사유" value="${escapeHtml(current?.exitReason || "")}" />
+      <button class="primary" type="submit">${current ? "수정 저장" : "매매 기록 추가"}</button>
+      ${current ? `<button id="cancel-trade-edit" class="secondary" type="button">수정 취소</button>` : ""}
     </form>
   `;
 }
 
 function incomeForm() {
+  const current = editingIncome();
+  const mode = current ? "edit" : "create";
+  const selectedAccountId = current?.accountId || "dividend";
+  const selectedType = current?.type || "배당";
+
   return `
-    <form id="income-form" class="form-grid">
-      <select name="accountId" required>${accountOptions("dividend")}</select>
-      <input name="month" type="month" required />
-      <input name="ticker" placeholder="종목/계약" required />
-      <select name="type"><option>배당</option><option>옵션 프리미엄</option></select>
-      <input name="gross" type="number" step="any" placeholder="세전 금액" required />
-      <input name="tax" type="number" step="any" placeholder="세금" value="0" />
-      <button class="primary" type="submit">현금흐름 추가</button>
+    <form id="income-form" class="form-grid record-editor ${mode === "edit" ? "editing" : ""}">
+      ${current ? `<input type="hidden" name="_id" value="${escapeHtml(current._id)}" />` : ""}
+      ${current ? `
+        <div class="form-notice">
+          <strong>현금흐름 기록 수정 중</strong>
+          <span>${escapeHtml(current.ticker || "-")} 현금흐름 기록을 수정하고 있습니다. 저장하면 기존 기록이 새 값으로 교체됩니다.</span>
+        </div>
+      ` : ""}
+      <select name="accountId" required>${accountOptions(selectedAccountId)}</select>
+      <input name="month" type="month" value="${escapeHtml(current?.month || "")}" required />
+      <input name="ticker" placeholder="종목/계약" value="${escapeHtml(current?.ticker || "")}" required />
+      <select name="type">
+        <option ${selectedType === "배당" ? "selected" : ""}>배당</option>
+        <option ${selectedType === "옵션 프리미엄" ? "selected" : ""}>옵션 프리미엄</option>
+      </select>
+      <input name="gross" type="number" step="any" placeholder="세전 금액" value="${escapeHtml(current?.gross ?? "")}" required />
+      <input name="tax" type="number" step="any" placeholder="세금" value="${escapeHtml(current?.tax ?? 0)}" />
+      <button class="primary" type="submit">${current ? "수정 저장" : "현금흐름 추가"}</button>
+      ${current ? `<button id="cancel-income-edit" class="secondary" type="button">수정 취소</button>` : ""}
     </form>
   `;
 }
@@ -1730,11 +1830,11 @@ function attachViewEvents() {
   }
   const tradeFormEl = document.getElementById("trade-form");
   if (tradeFormEl) {
-    tradeFormEl.addEventListener("submit", (event) => handleFormSubmit(event, "trades", ["entry", "exit", "quantity"]));
+    tradeFormEl.addEventListener("submit", handleTradeSubmit);
   }
   const incomeFormEl = document.getElementById("income-form");
   if (incomeFormEl) {
-    incomeFormEl.addEventListener("submit", (event) => handleFormSubmit(event, "income", ["gross", "tax"]));
+    incomeFormEl.addEventListener("submit", handleIncomeSubmit);
   }
   const accountSettingsFormEl = document.getElementById("account-settings-form");
   if (accountSettingsFormEl) {
@@ -1771,6 +1871,8 @@ function attachViewEvents() {
       if (confirm(`${name} 보유 종목을 삭제할까요?`)) {
         state.holdings = state.holdings.filter((row) => String(row._id) !== String(button.dataset.deleteHolding));
         if (String(editingHoldingId) === String(button.dataset.deleteHolding)) editingHoldingId = null;
+        editingTradeId = null;
+        editingIncomeId = null;
         saveState();
         render();
       }
@@ -1785,11 +1887,80 @@ function attachViewEvents() {
     });
   }
 
+
+  document.querySelectorAll("[data-edit-trade]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingTradeId = button.dataset.editTrade;
+      activeView = "trades";
+      render();
+      requestAnimationFrame(() => {
+        document.getElementById("trade-editor-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-delete-trade]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const trade = tradeById(button.dataset.deleteTrade);
+      if (!trade) return;
+      const name = trade.ticker || "선택한 매매 기록";
+      if (confirm(`${name} 매매 복기 기록을 삭제할까요?`)) {
+        state.trades = state.trades.filter((row) => String(row._id) !== String(button.dataset.deleteTrade));
+        if (String(editingTradeId) === String(button.dataset.deleteTrade)) editingTradeId = null;
+        saveState();
+        render();
+      }
+    });
+  });
+
+  const cancelTradeEdit = document.getElementById("cancel-trade-edit");
+  if (cancelTradeEdit) {
+    cancelTradeEdit.addEventListener("click", () => {
+      editingTradeId = null;
+      render();
+    });
+  }
+
+  document.querySelectorAll("[data-edit-income]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingIncomeId = button.dataset.editIncome;
+      activeView = "income";
+      render();
+      requestAnimationFrame(() => {
+        document.getElementById("income-editor-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-delete-income]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const income = incomeById(button.dataset.deleteIncome);
+      if (!income) return;
+      const name = income.ticker || "선택한 현금흐름 기록";
+      if (confirm(`${name} 배당·커버드콜 현금흐름 기록을 삭제할까요?`)) {
+        state.income = state.income.filter((row) => String(row._id) !== String(button.dataset.deleteIncome));
+        if (String(editingIncomeId) === String(button.dataset.deleteIncome)) editingIncomeId = null;
+        saveState();
+        render();
+      }
+    });
+  });
+
+  const cancelIncomeEdit = document.getElementById("cancel-income-edit");
+  if (cancelIncomeEdit) {
+    cancelIncomeEdit.addEventListener("click", () => {
+      editingIncomeId = null;
+      render();
+    });
+  }
+
   const loadSample = document.getElementById("load-sample");
   if (loadSample) {
     loadSample.addEventListener("click", () => {
       state = normalizeState(clone(SAMPLE_DATA));
       editingHoldingId = null;
+      editingTradeId = null;
+      editingIncomeId = null;
       saveState();
       render();
     });
@@ -1800,6 +1971,8 @@ function attachViewEvents() {
       if (confirm("브라우저에 저장된 대시보드 데이터를 모두 삭제할까요?")) {
         state = normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], trades: [], income: [], targets: clone(SAMPLE_DATA.targets) });
         editingHoldingId = null;
+        editingTradeId = null;
+        editingIncomeId = null;
         saveState();
         render();
       }
@@ -1833,16 +2006,58 @@ function handleHoldingSubmit(event) {
   render();
 }
 
-function handleFormSubmit(event, collection, numericFields) {
+function handleTradeSubmit(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget).entries());
-  numericFields.forEach((field) => {
+  ["entry", "exit", "quantity"].forEach((field) => {
     if (data[field] !== undefined && data[field] !== "") data[field] = Number(data[field]);
   });
-  state[collection].push(data);
+
+  const existingId = data._id || editingTradeId;
+  delete data._id;
+
+  if (existingId) {
+    const index = state.trades.findIndex((row) => String(row._id) === String(existingId));
+    if (index >= 0) {
+      state.trades[index] = normalizeTradeRow({ ...state.trades[index], ...data, _id: existingId });
+    } else {
+      state.trades.push(normalizeTradeRow({ ...data, _id: existingId }));
+    }
+    editingTradeId = null;
+  } else {
+    state.trades.push(normalizeTradeRow(data));
+  }
+
   saveState();
   render();
 }
+
+function handleIncomeSubmit(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  ["gross", "tax"].forEach((field) => {
+    if (data[field] !== undefined && data[field] !== "") data[field] = Number(data[field]);
+  });
+
+  const existingId = data._id || editingIncomeId;
+  delete data._id;
+
+  if (existingId) {
+    const index = state.income.findIndex((row) => String(row._id) === String(existingId));
+    if (index >= 0) {
+      state.income[index] = normalizeIncomeRow({ ...state.income[index], ...data, _id: existingId });
+    } else {
+      state.income.push(normalizeIncomeRow({ ...data, _id: existingId }));
+    }
+    editingIncomeId = null;
+  } else {
+    state.income.push(normalizeIncomeRow(data));
+  }
+
+  saveState();
+  render();
+}
+
 
 function handleAccountSettingsSubmit(event) {
   event.preventDefault();
@@ -1881,6 +2096,8 @@ function importBackup(event) {
       const data = parsed.data || parsed;
       state = normalizeState(data);
       editingHoldingId = null;
+      editingTradeId = null;
+      editingIncomeId = null;
       saveState();
       render();
     } catch (error) {
@@ -1905,8 +2122,19 @@ function handleCsvImport(event) {
       };
       const parsedRows = rows.map((row) => coerceCsvRow(row, numericByCollection[collection] || []));
       const normalizedRows = normalizeRows(parsedRows, buildAccountNameMap(state.accounts), defaultAccountIdFor(collection));
-      state[collection] = state[collection].concat(collection === "holdings" ? normalizedRows.map(normalizeHoldingRow) : normalizedRows);
+      const normalizedWithIds = collection === "holdings"
+        ? normalizedRows.map(normalizeHoldingRow)
+        : collection === "trades"
+          ? normalizedRows.map(normalizeTradeRow)
+          : collection === "income"
+            ? normalizedRows.map(normalizeIncomeRow)
+            : normalizedRows;
+      state[collection] = state[collection].concat(normalizedWithIds);
       if (collection === "holdings") editingHoldingId = null;
+      if (collection === "trades") editingTradeId = null;
+      if (collection === "income") editingIncomeId = null;
+      editingTradeId = null;
+      editingIncomeId = null;
       saveState();
       render();
     } catch (error) {
