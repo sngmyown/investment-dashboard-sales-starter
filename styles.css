@@ -1966,3 +1966,85 @@ button,
     transform: perspective(1000px) rotateX(-6deg) rotateZ(0.3deg) translateY(-2px) scale(1.015);
   }
 }
+
+
+/* 보유 종목 수정/삭제 UI */
+.table-actions {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.mini-button {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  padding: 0.38rem 0.64rem;
+  background: rgba(15, 23, 42, 0.42);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.mini-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(56, 189, 248, 0.56);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.danger-mini {
+  color: #fecdd3;
+  border-color: rgba(251, 113, 133, 0.36);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.danger-mini:hover {
+  border-color: rgba(251, 113, 133, 0.64);
+  background: rgba(251, 113, 133, 0.14);
+}
+
+tr.editing-row {
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: inset 3px 0 0 rgba(56, 189, 248, 0.72);
+}
+
+.holding-editor.editing {
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 22px;
+  padding: 1rem;
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.form-notice {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 18px;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.13), rgba(99, 102, 241, 0.08));
+}
+
+.form-notice strong {
+  color: #e0f2fe;
+  font-size: 0.92rem;
+}
+
+.form-notice span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .table-actions {
+    justify-content: flex-start;
+  }
+
+  .mini-button {
+    padding: 0.42rem 0.68rem;
+  }
+}
