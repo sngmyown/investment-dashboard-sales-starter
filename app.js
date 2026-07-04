@@ -281,6 +281,20 @@ const DEFAULT_ASSET_CLASSES = [
   "기타"
 ];
 const ASSET_CLASSES = Array.isArray(CONFIG.assetClasses) && CONFIG.assetClasses.length ? CONFIG.assetClasses : DEFAULT_ASSET_CLASSES;
+
+const CHART_PALETTES = {
+  accounts: ["#38bdf8", "#8b5cf6", "#f59e0b"],
+  swing: ["#38bdf8", "#0ea5e9", "#22d3ee", "#60a5fa", "#0284c7", "#7dd3fc", "#2563eb", "#67e8f9"],
+  long: ["#8b5cf6", "#a78bfa", "#6366f1", "#c084fc", "#7c3aed", "#818cf8", "#d8b4fe", "#4f46e5"],
+  dividend: ["#f59e0b", "#fbbf24", "#fb7185", "#f97316", "#fde68a", "#ef4444", "#fdba74", "#facc15"],
+  asset: ["#38bdf8", "#a78bfa", "#34d399", "#f59e0b", "#f472b6", "#60a5fa", "#f97316", "#22c55e", "#eab308", "#fb7185", "#14b8a6", "#c084fc", "#94a3b8"],
+  default: ["#38bdf8", "#34d399", "#fbbf24", "#a78bfa", "#fb7185", "#22c55e", "#60a5fa", "#f97316"]
+};
+
+function chartPalette(name) {
+  return CHART_PALETTES[name] || CHART_PALETTES.default;
+}
+
 const STORAGE_KEY = CONFIG.storageKey || "portfolio-dashboard-local-v2";
 const SESSION_KEY = `${STORAGE_KEY}:session`;
 let state = loadInitialState();
@@ -680,7 +694,7 @@ function renderAppShell() {
           <span class="pill">${pct(t.pnlRate)}</span>
         </div>
         <div class="hero-donut-shell">
-          ${donutChart(byAccount, "3계좌 통합", true)}
+          ${donutChart(byAccount, "3계좌 통합", true, "accounts")}
         </div>
         <div class="hero-account-stack">
           ${heroAccountRows(accountSummary)}
@@ -770,7 +784,7 @@ function renderOverview() {
       <div class="composition-layout">
         <div class="master-donut-card elevated-card detail-card-trigger ${selectedOverviewTarget === "total" ? "selected" : ""}" data-detail-target="total" tabindex="0" aria-label="전체 계좌 상세 패널 열기">
           <div class="card-label">전체 계좌 비중</div>
-          ${donutChart(byAccount, "전체 계좌", true)}
+          ${donutChart(byAccount, "전체 계좌", true, "accounts")}
           <div class="detail-card-footer">
             <span class="interaction-hint">더블 클릭 시 상세 패널로 들어갑니다.</span>
             <button type="button" class="detail-open-button" data-detail-target="total">상세 보기 →</button>
@@ -789,7 +803,7 @@ function renderOverview() {
     <section class="grid-2">
       <article class="panel chart-panel">
         <div class="panel-head"><h2>자산군 비중</h2><span>선택식 자산군 기준으로 집계</span></div>
-        ${donutChart(byAsset, "자산군", false)}
+        ${donutChart(byAsset, "자산군", false, "asset")}
       </article>
       <article class="panel chart-panel">
         <div class="panel-head"><h2>월별 현금흐름</h2><span>배당과 커버드콜 프리미엄 합산</span></div>
@@ -820,7 +834,7 @@ function accountPieCard(account) {
         </div>
         <strong>${money(account.total)}</strong>
       </div>
-      ${donutChart(byHolding, account.name, false)}
+      ${donutChart(byHolding, account.name, false, account.id)}
       <div class="mini-stats">
         <span>손익 <strong class="${account.pnl >= 0 ? "positive" : "negative"}">${money(account.pnl)}</strong></span>
         <span>수익률 <strong class="${account.pnlRate >= 0 ? "positive" : "negative"}">${pct(account.pnlRate)}</strong></span>
@@ -901,7 +915,7 @@ function renderTotalOverviewDetail() {
     <section class="detail-section-grid">
       <article class="detail-subpanel">
         <div class="panel-head slim"><h3>계좌별 비중</h3><span>전체 계좌 기준</span></div>
-        ${donutChart(byAccount, "전체", false)}
+        ${donutChart(byAccount, "전체", false, "accounts")}
       </article>
       <article class="detail-subpanel">
         <div class="panel-head slim"><h3>자산군별 비중</h3><span>선택식 자산군 기준</span></div>
@@ -931,7 +945,7 @@ function renderAccountOverviewDetail(targetId) {
     <section class="detail-section-grid">
       <article class="detail-subpanel">
         <div class="panel-head slim"><h3>종목별 비중</h3><span>${escapeHtml(account.name)}</span></div>
-        ${Object.keys(byHolding).length ? donutChart(byHolding, account.name, false) : empty("보유 종목이 없습니다.")}
+        ${Object.keys(byHolding).length ? donutChart(byHolding, account.name, false, account.id) : empty("보유 종목이 없습니다.")}
       </article>
       <article class="detail-subpanel">
         <div class="panel-head slim"><h3>자산군별 비중</h3><span>선택식 자산군 기준</span></div>
@@ -1111,7 +1125,7 @@ function renderAccounts() {
         <h2>3계좌 평가금액 비중</h2>
         <span>전체 자산에서 각 계좌가 차지하는 비중</span>
       </div>
-      ${donutChart(byAccount, "계좌 비중", true)}
+      ${donutChart(byAccount, "계좌 비중", true, "accounts")}
     </section>
 
     <section class="account-detail-grid">
@@ -1154,7 +1168,7 @@ function accountDetailCard(account) {
         ${card("현금흐름", money(account.incomeNet), "세후 기준")}
       </section>
       <div class="panel-head slim"><h3>자산군 비중</h3><span>${escapeHtml(account.name)}</span></div>
-      ${Object.keys(byAsset).length ? donutChart(byAsset, account.name, false) : empty("보유 종목이 없습니다.")}
+      ${Object.keys(byAsset).length ? donutChart(byAsset, account.name, false, "asset") : empty("보유 종목이 없습니다.")}
     </article>
   `;
 }
@@ -1333,12 +1347,12 @@ function renderPrivacy() {
   `;
 }
 
-function donutChart(data, centerLabel, large) {
+function donutChart(data, centerLabel, large, paletteName = "default") {
   const entries = Object.entries(data).filter(([, value]) => Number(value) > 0);
   if (!entries.length) return empty("차트에 표시할 데이터가 없습니다.");
   const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
   let cursor = 0;
-  const colors = ["#38bdf8", "#34d399", "#fbbf24", "#a78bfa", "#fb7185", "#22c55e", "#60a5fa", "#f97316"];
+  const colors = chartPalette(paletteName);
   const segments = entries.map(([key, value], index) => {
     const start = cursor;
     const end = cursor + (Number(value) / total) * 100;
@@ -1346,7 +1360,7 @@ function donutChart(data, centerLabel, large) {
     return `${colors[index % colors.length]} ${start}% ${end}%`;
   });
   return `
-    <div class="donut-wrap ${large ? "large" : ""}">
+    <div class="donut-wrap ${large ? "large" : ""} palette-${escapeHtml(paletteName)}">
       <div class="donut" style="background: conic-gradient(${segments.join(", ")});">
         <div class="donut-center"><span>${escapeHtml(centerLabel)}</span><strong>${money(total)}</strong></div>
       </div>
@@ -1369,7 +1383,7 @@ function sunburstChart() {
   const accountEntries = accountTotals().filter((account) => account.total > 0);
   if (!accountEntries.length) return empty("Sunburst 차트에 표시할 데이터가 없습니다.");
   const accountData = Object.fromEntries(accountEntries.map((account) => [account.name, account.total]));
-  const inner = donutChart(accountData, "Premium", true);
+  const inner = donutChart(accountData, "Premium", true, "accounts");
   return `
     <div class="sunburst-placeholder">
       ${inner}
