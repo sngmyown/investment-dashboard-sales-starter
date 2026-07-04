@@ -1021,12 +1021,17 @@ function renderAppShell() {
       </div>
 
       <aside class="hero-dashboard-card" aria-label="데모 대시보드 미리보기">
-        <div class="hero-card-head">
-          <div>
+        <div class="hero-card-head hero-total-head">
+          <div class="hero-total-block">
             <span>총 평가금액</span>
-            <strong>${money(t.total)}</strong>
+            <div class="hero-total-row">
+              <strong>${money(t.total)}</strong>
+              <span class="hero-return-badge ${t.pnlRate >= 0 ? "positive" : "negative"}">
+                <span class="hero-return-label">전체 수익률</span>
+                <b>${pct(t.pnlRate)}</b>
+              </span>
+            </div>
           </div>
-          <span class="pill return-pill ${t.pnlRate >= 0 ? "positive" : "negative"}">전체 수익률 ${pct(t.pnlRate)}</span>
         </div>
         <div class="hero-donut-shell">
           ${donutChart(byAccount, "3계좌 통합", true, "accounts")}
