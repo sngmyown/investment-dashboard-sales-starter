@@ -83,7 +83,7 @@ const SAMPLE_DATA = {
       accountId: "long",
       ticker: "005930",
       name: "삼성전자",
-      assetClass: "국내주식",
+      assetClass: "한국 개별주",
       market: "KR",
       quantity: 60,
       avgPrice: 72800,
@@ -248,7 +248,7 @@ const SAMPLE_DATA = {
     },
     {
       accountId: "long",
-      assetClass: "국내주식",
+      assetClass: "한국 개별주",
       targetWeight: 22
     },
     {
@@ -265,6 +265,22 @@ const SAMPLE_DATA = {
 };
 
 const CONFIG = window.DASHBOARD_CONFIG || {};
+const DEFAULT_ASSET_CLASSES = [
+  "미국 개별주",
+  "미국 ETF",
+  "한국 개별주",
+  "한국 ETF",
+  "미국 채권",
+  "한국 채권",
+  "현금",
+  "금",
+  "은",
+  "레버리지 상품",
+  "배당 ETF",
+  "커버드콜 ETF",
+  "기타"
+];
+const ASSET_CLASSES = Array.isArray(CONFIG.assetClasses) && CONFIG.assetClasses.length ? CONFIG.assetClasses : DEFAULT_ASSET_CLASSES;
 const STORAGE_KEY = CONFIG.storageKey || "portfolio-dashboard-local-v2";
 const SESSION_KEY = `${STORAGE_KEY}:session`;
 let state = loadInitialState();
@@ -412,6 +428,13 @@ function accountOptions(selectedAccountId) {
   return state.accounts.map((account) => {
     const selected = account.id === selectedAccountId ? "selected" : "";
     return `<option value="${escapeHtml(account.id)}" ${selected}>${escapeHtml(account.name)}</option>`;
+  }).join("");
+}
+
+function assetClassOptions(selectedClass) {
+  return ASSET_CLASSES.map((assetClass) => {
+    const selected = assetClass === selectedClass ? "selected" : "";
+    return `<option value="${escapeHtml(assetClass)}" ${selected}>${escapeHtml(assetClass)}</option>`;
   }).join("");
 }
 
@@ -888,6 +911,13 @@ function renderData() {
       <div class="panel-head"><h2>계좌 설정</h2><span>고객별 계좌명 변경 가능</span></div>
       ${accountSettingsForm()}
     </section>
+    <section class="panel">
+      <div class="panel-head"><h2>자산군 선택 목록</h2><span>보유 종목 입력 화면의 선택지입니다</span></div>
+      <div class="chip-list">
+        ${ASSET_CLASSES.map((assetClass) => `<span>${escapeHtml(assetClass)}</span>`).join("")}
+      </div>
+      <p class="muted">선택지는 config.js의 assetClasses 배열에서 고객별로 조정할 수 있습니다. 자유 입력을 막아 차트 집계 기준이 흔들리지 않게 합니다.</p>
+    </section>
     <section class="grid-2">
       <article class="panel">
         <div class="panel-head"><h2>CSV 업로드</h2><span>accountId 컬럼으로 계좌를 구분합니다</span></div>
@@ -902,7 +932,7 @@ function renderData() {
           <button id="clear-data" class="danger">전체 데이터 삭제</button>
         </div>
         <p class="muted">브라우저 데이터 삭제, 기기 변경, 시크릿 모드 사용 시 localStorage 데이터가 사라질 수 있습니다. 고객에게 백업 내보내기 루틴을 안내하세요.</p>
-        <p class="muted"><strong>계좌 ID:</strong> swing / long / dividend. CSV에서 accountId를 비워두면 기본 계좌로 분류됩니다.</p>
+        <p class="muted"><strong>계좌 ID:</strong> swing / long / dividend. CSV에서 accountId를 비워두면 기본 계좌로 분류됩니다. assetClass는 자산군 선택 목록과 같은 이름을 쓰는 것을 권장합니다.</p>
       </article>
     </section>
     <section class="panel">
@@ -1055,7 +1085,7 @@ function holdingForm() {
       <select name="accountId" required>${accountOptions("swing")}</select>
       <input name="ticker" placeholder="종목코드" required />
       <input name="name" placeholder="종목명" />
-      <input name="assetClass" placeholder="자산군" required />
+      <select name="assetClass" required>${assetClassOptions("미국 개별주")}</select>
       <input name="market" placeholder="시장" />
       <input name="quantity" type="number" step="any" placeholder="수량" required />
       <input name="avgPrice" type="number" step="any" placeholder="평균단가" required />
