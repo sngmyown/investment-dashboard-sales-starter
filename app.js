@@ -448,7 +448,7 @@ function build3DPie(entries, colors, options = {}) {
 const STORAGE_KEY = CONFIG.storageKey || "portfolio-dashboard-local-v2";
 const SESSION_KEY = `${STORAGE_KEY}:session`;
 let state = loadInitialState();
-let activeView = "overview";
+let activeView = "start";
 let selectedOverviewTarget = "total";
 let editingHoldingId = null;
 let editingTradeId = null;
@@ -875,7 +875,7 @@ function renderAppShell() {
 
   app.innerHTML = `
     <header class="site-header">
-      <a class="brand-mark" href="#" data-view="overview" aria-label="대시보드 홈">
+      <a class="brand-mark" href="#" data-view="start" aria-label="대시보드 홈">
         <span>3A</span>
         <strong>Portfolio Studio</strong>
       </a>
@@ -892,9 +892,9 @@ function renderAppShell() {
         <h1>${escapeHtml(CONFIG.title || "3계좌 통합 투자관리 대시보드")}</h1>
         <p class="subcopy">${escapeHtml(CONFIG.description || "스윙, 장기투자, 배당주 계좌를 한 화면에서 분리해서 보여주는 웹 대시보드입니다.")}</p>
         <div class="hero-actions">
-          <button class="primary" data-view="overview">데모 화면 보기</button>
-          <button class="secondary" data-view="data">입력 구조 확인</button>
-          <button class="ghost" data-view="privacy">프라이버시 안내</button>
+          <button class="primary" data-view="start">시작하기</button>
+          <button class="secondary" data-view="overview">데모 화면 보기</button>
+          <button class="ghost" data-view="checklist">최종 점검</button>
         </div>
         <div class="hero-badges">
           <span>3계좌 분리</span>
@@ -924,11 +924,13 @@ function renderAppShell() {
     ${renderShowroomProof()}
 
     <nav class="tabs" aria-label="대시보드 메뉴">
+      ${tabButton("start", "시작하기")}
       ${tabButton("overview", "전체 현황")}
       ${tabButton("accounts", "계좌·비중")}
       ${tabButton("trades", "스윙 복기")}
       ${tabButton("income", "배당·커버드콜")}
       ${tabButton("data", "데이터 관리")}
+      ${tabButton("checklist", "최종 점검")}
       ${tabButton("privacy", "프라이버시·면책")}
     </nav>
 
@@ -971,14 +973,153 @@ function card(title, value, meta) {
   `;
 }
 
+function completionBadge(done, doneLabel = "완료", pendingLabel = "대기") {
+  return `<span class="status-pill ${done ? "done" : "pending"}">${done ? doneLabel : pendingLabel}</span>`;
+}
+
+function manualBadge(label = "수동 확인") {
+  return `<span class="status-pill manual">${escapeHtml(label)}</span>`;
+}
+
+function dataCompletion() {
+  return {
+    holdings: state.holdings.length > 0,
+    targets: state.targets.length > 0,
+    trades: state.trades.length > 0,
+    income: state.income.length > 0
+  };
+}
+
+function onboardingStep(number, title, description, done, actionLabel, view) {
+  return `
+    <article class="onboarding-step ${done ? "done" : ""}">
+      <div class="step-index">${number}</div>
+      <div class="step-copy">
+        <div class="step-title-row">
+          <h3>${escapeHtml(title)}</h3>
+          ${completionBadge(done)}
+        </div>
+        <p>${escapeHtml(description)}</p>
+        <button type="button" class="secondary" data-view="${escapeHtml(view)}">${escapeHtml(actionLabel)}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderStart() {
+  const progress = dataCompletion();
+  const completedCount = [progress.holdings, progress.targets, progress.trades, progress.income].filter(Boolean).length;
+  const progressRate = Math.round((completedCount / 4) * 100);
+
+  return `
+    <section class="panel onboarding-hero-panel">
+      <div class="panel-head">
+        <div>
+          <span class="section-kicker">First user guide</span>
+          <h2>시작하기</h2>
+          <span>처음 사용하는 고객이 데이터를 넣고 백업까지 완료하는 기본 순서입니다.</span>
+        </div>
+        <span class="pill">${progressRate}% 준비</span>
+      </div>
+      <div class="onboarding-layout">
+        <div class="onboarding-main">
+          <div class="onboarding-steps">
+            ${onboardingStep(1, "보유 종목 입력", "스윙, 장기투자, 배당주 계좌의 현재 보유 종목을 먼저 입력합니다.", progress.holdings, "보유 종목 관리", "accounts")}
+            ${onboardingStep(2, "장기투자 목표 비중 설정", "장기투자 계좌의 자산군별 목표 비중을 입력해서 현재 비중과 비교합니다.", progress.targets, "목표 비중 관리", "accounts")}
+            ${onboardingStep(3, "스윙매매 복기 입력", "진입가, 청산가, 전략, 진입·청산 사유를 기록해서 승률과 복기 품질을 확인합니다.", progress.trades, "스윙 복기 관리", "trades")}
+            ${onboardingStep(4, "배당·커버드콜 현금흐름 입력", "배당금, 세금, 옵션 프리미엄을 월별로 입력해서 세후 현금흐름을 확인합니다.", progress.income, "현금흐름 관리", "income")}
+            <article class="onboarding-step backup-step">
+              <div class="step-index">5</div>
+              <div class="step-copy">
+                <div class="step-title-row">
+                  <h3>백업 파일 저장</h3>
+                  ${manualBadge()}
+                </div>
+                <p>입력 데이터는 브라우저에 저장되므로, 데이터 입력 후 백업 파일을 반드시 내려받아 보관합니다.</p>
+                <button type="button" class="secondary" data-export-backup="true">백업 파일 저장</button>
+              </div>
+            </article>
+          </div>
+        </div>
+        <aside class="quick-start-card">
+          <h3>처음 시작 옵션</h3>
+          <p>데모 검수와 실제 고객 납품 상황을 분리해서 시작할 수 있습니다.</p>
+          <div class="quick-action-stack">
+            <button type="button" class="primary" data-load-sample="true">샘플 데이터로 체험하기</button>
+            <button type="button" class="secondary" data-start-empty="true">내 데이터로 새로 시작하기</button>
+            <label class="ghost file-button full-width">백업 파일 불러오기<input data-import-backup="true" type="file" accept=".json,application/json" /></label>
+            <button type="button" class="ghost" data-view="checklist">최종 점검 체크리스트</button>
+          </div>
+          <div class="quick-note">
+            <strong>권장 순서</strong>
+            <span>샘플로 먼저 체험한 뒤, 실제 고객 납품 전에는 내 데이터로 새로 시작하기를 실행하세요.</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  `;
+}
+
+function checklistRow(title, description, statusHtml, actionLabel, view, extraAction = "") {
+  return `
+    <article class="checklist-row">
+      <div class="checklist-main">
+        ${statusHtml}
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(description)}</p>
+        </div>
+      </div>
+      <div class="checklist-actions">
+        ${view ? `<button type="button" class="secondary" data-view="${escapeHtml(view)}">${escapeHtml(actionLabel)}</button>` : ""}
+        ${extraAction}
+      </div>
+    </article>
+  `;
+}
+
+function renderChecklist() {
+  const progress = dataCompletion();
+  const required = [progress.holdings, progress.targets, progress.trades, progress.income];
+  const completedCount = required.filter(Boolean).length;
+
+  return `
+    <section class="panel checklist-panel">
+      <div class="panel-head">
+        <div>
+          <span class="section-kicker">Delivery checklist</span>
+          <h2>최종 점검 체크리스트</h2>
+          <span>고객에게 납품하거나 공개 데모를 시연하기 전 확인해야 할 항목입니다.</span>
+        </div>
+        <span class="pill">필수 데이터 ${completedCount}/4</span>
+      </div>
+      <div class="checklist-list">
+        ${checklistRow("보유 종목 입력 완료", `${state.holdings.length}개 보유 종목이 저장되어 있습니다.`, completionBadge(progress.holdings), "확인", "accounts")}
+        ${checklistRow("장기투자 목표 비중 입력 완료", `${state.targets.length}개 목표 비중 항목이 저장되어 있습니다.`, completionBadge(progress.targets), "확인", "accounts")}
+        ${checklistRow("스윙매매 기록 입력 완료", `${state.trades.length}개 매매 복기 기록이 저장되어 있습니다.`, completionBadge(progress.trades), "확인", "trades")}
+        ${checklistRow("배당·커버드콜 현금흐름 입력 완료", `${state.income.length}개 현금흐름 기록이 저장되어 있습니다.`, completionBadge(progress.income), "확인", "income")}
+        ${checklistRow("백업 파일 다운로드 완료", "브라우저 저장 데이터 유실에 대비해서 최신 백업 파일을 내려받습니다.", manualBadge(), "", "", `<button type="button" class="secondary" data-export-backup="true">백업 내보내기</button>`)}
+        ${checklistRow("프라이버시 모드 확인 완료", privacyMode ? "현재 프라이버시 모드가 켜져 있습니다." : "금액과 종목명 마스킹이 정상 작동하는지 확인하세요.", privacyMode ? completionBadge(true, "확인됨", "대기") : manualBadge("확인 필요"), "프라이버시 안내", "privacy", `<button type="button" class="ghost" data-toggle-privacy="true">${privacyMode ? "프라이버시 해제" : "프라이버시 모드 켜기"}</button>`)}
+      </div>
+      <div class="checklist-footer-actions">
+        <button type="button" class="primary" data-view="overview">전체 현황 검수</button>
+        <button type="button" class="secondary" data-view="data">데이터 관리 화면</button>
+        <label class="ghost file-button">백업 파일 복원 테스트<input data-import-backup="true" type="file" accept=".json,application/json" /></label>
+      </div>
+    </section>
+  `;
+}
+
 function renderActiveView() {
   const view = document.getElementById("view");
   const renderers = {
+    start: renderStart,
     overview: renderOverview,
     accounts: renderAccounts,
     trades: renderTrades,
     income: renderIncome,
     data: renderData,
+    checklist: renderChecklist,
     privacy: renderPrivacy
   };
   view.innerHTML = renderers[activeView]();
@@ -1592,10 +1733,12 @@ function renderData() {
         ${csvUploadBlock("targets", "장기투자 목표 비중 CSV", "accountId,assetClass,targetWeight")}
       </article>
       <article class="panel">
-        <div class="panel-head"><h2>데이터 제어</h2><span>고객 통제권 제공</span></div>
+        <div class="panel-head"><h2>데이터 제어</h2><span>샘플 체험 / 실제 입력 / 백업 복원</span></div>
         <div class="action-list">
-          <button id="load-sample" class="secondary">샘플 데이터 불러오기</button>
-          <button id="clear-data" class="danger">전체 데이터 삭제</button>
+          <button id="load-sample" class="secondary" data-load-sample="true">샘플 데이터로 체험하기</button>
+          <button id="clear-data" class="danger" data-start-empty="true">내 데이터로 새로 시작하기</button>
+          <button type="button" class="ghost" data-export-backup="true">백업 파일 저장</button>
+          <label class="ghost file-button">백업 파일 불러오기<input data-import-backup="true" type="file" accept=".json,application/json" /></label>
         </div>
         <p class="muted">브라우저 데이터 삭제, 기기 변경, 시크릿 모드 사용 시 localStorage 데이터가 사라질 수 있습니다. 고객에게 백업 내보내기 루틴을 안내하세요.</p>
         <p class="muted"><strong>계좌 ID:</strong> swing / long / dividend. CSV에서 accountId를 비워두면 기본 계좌로 분류됩니다. assetClass는 자산군 선택 목록과 같은 이름을 쓰는 것을 권장합니다.</p>
@@ -1891,6 +2034,30 @@ function csvUploadBlock(type, title, headers) {
   `;
 }
 
+function resetEditingState() {
+  editingHoldingId = null;
+  editingTradeId = null;
+  editingIncomeId = null;
+  editingTargetId = null;
+}
+
+function loadSampleData() {
+  state = normalizeState(clone(SAMPLE_DATA));
+  resetEditingState();
+  activeView = "overview";
+  saveState();
+  render();
+}
+
+function startEmptyData() {
+  if (!confirm("현재 브라우저에 저장된 데이터를 비우고 내 데이터로 새로 시작할까요? 필요하면 먼저 백업 파일을 저장하세요.")) return;
+  state = normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], trades: [], income: [], targets: [] });
+  resetEditingState();
+  activeView = "data";
+  saveState();
+  render();
+}
+
 function attachViewEvents() {
   const holdingFormEl = document.getElementById("holding-form");
   if (holdingFormEl) {
@@ -1914,6 +2081,24 @@ function attachViewEvents() {
   }
   document.querySelectorAll("[data-csv]").forEach((input) => {
     input.addEventListener("change", handleCsvImport);
+  });
+  document.querySelectorAll("[data-load-sample]").forEach((button) => {
+    button.addEventListener("click", loadSampleData);
+  });
+  document.querySelectorAll("[data-start-empty]").forEach((button) => {
+    button.addEventListener("click", startEmptyData);
+  });
+  document.querySelectorAll("[data-export-backup]").forEach((button) => {
+    button.addEventListener("click", exportBackup);
+  });
+  document.querySelectorAll("[data-import-backup]").forEach((input) => {
+    input.addEventListener("change", importBackup);
+  });
+  document.querySelectorAll("[data-toggle-privacy]").forEach((button) => {
+    button.addEventListener("click", () => {
+      privacyMode = !privacyMode;
+      render();
+    });
   });
   document.querySelectorAll(".detail-card-trigger").forEach((card) => {
     card.addEventListener("dblclick", () => openOverviewDetail(card.dataset.detailTarget || "total"));
@@ -2061,32 +2246,6 @@ function attachViewEvents() {
     });
   }
 
-  const loadSample = document.getElementById("load-sample");
-  if (loadSample) {
-    loadSample.addEventListener("click", () => {
-      state = normalizeState(clone(SAMPLE_DATA));
-      editingHoldingId = null;
-      editingTradeId = null;
-      editingIncomeId = null;
-      editingTargetId = null;
-      saveState();
-      render();
-    });
-  }
-  const clearData = document.getElementById("clear-data");
-  if (clearData) {
-    clearData.addEventListener("click", () => {
-      if (confirm("브라우저에 저장된 대시보드 데이터를 모두 삭제할까요?")) {
-        state = normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], trades: [], income: [], targets: clone(SAMPLE_DATA.targets) });
-        editingHoldingId = null;
-        editingTradeId = null;
-        editingIncomeId = null;
-        editingTargetId = null;
-        saveState();
-        render();
-      }
-    });
-  }
 }
 
 function handleHoldingSubmit(event) {
