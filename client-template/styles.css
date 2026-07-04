@@ -2264,3 +2264,39 @@ tr.editing-row {
   }
 }
 
+
+
+.return-pill {
+  border-color: rgba(148, 163, 184, 0.38);
+  font-weight: 800;
+}
+
+.metric-card strong .positive,
+.metric-card strong .negative {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.fx-settings-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.transaction-editor {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.transaction-editor button {
+  grid-column: span 2;
+}
+
+@media (max-width: 900px) {
+  .transaction-editor {
+    grid-template-columns: 1fr;
+  }
+  .transaction-editor button {
+    grid-column: auto;
+  }
+}
