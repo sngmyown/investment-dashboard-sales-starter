@@ -5,5 +5,20 @@ window.DASHBOARD_CONFIG = {
   "storageKey": "portfolio-dashboard-client-three-accounts-v1",
   "preloadSample": false,
   "accessPassword": "change-this-password",
+  "assetClasses": [
+    "미국 개별주",
+    "미국 ETF",
+    "한국 개별주",
+    "한국 ETF",
+    "미국 채권",
+    "한국 채권",
+    "현금",
+    "금",
+    "은",
+    "레버리지 상품",
+    "배당 ETF",
+    "커버드콜 ETF",
+    "기타"
+  ],
   "enableSunburst": false
 };
