@@ -283,12 +283,12 @@ const DEFAULT_ASSET_CLASSES = [
 const ASSET_CLASSES = Array.isArray(CONFIG.assetClasses) && CONFIG.assetClasses.length ? CONFIG.assetClasses : DEFAULT_ASSET_CLASSES;
 
 const CHART_PALETTES = {
-  accounts: ["#38bdf8", "#8b5cf6", "#f59e0b"],
-  swing: ["#38bdf8", "#0ea5e9", "#22d3ee", "#60a5fa", "#0284c7", "#7dd3fc", "#2563eb", "#67e8f9"],
-  long: ["#8b5cf6", "#a78bfa", "#6366f1", "#c084fc", "#7c3aed", "#818cf8", "#d8b4fe", "#4f46e5"],
-  dividend: ["#f59e0b", "#fbbf24", "#fb7185", "#f97316", "#fde68a", "#ef4444", "#fdba74", "#facc15"],
-  asset: ["#38bdf8", "#a78bfa", "#34d399", "#f59e0b", "#f472b6", "#60a5fa", "#f97316", "#22c55e", "#eab308", "#fb7185", "#14b8a6", "#c084fc", "#94a3b8"],
-  default: ["#38bdf8", "#34d399", "#fbbf24", "#a78bfa", "#fb7185", "#22c55e", "#60a5fa", "#f97316"]
+  accounts: ["#0ea5e9", "#7c3aed", "#f97316"],
+  swing: ["#0ea5e9", "#f97316", "#22c55e", "#ef4444", "#8b5cf6", "#14b8a6", "#eab308", "#ec4899", "#2563eb", "#84cc16"],
+  long: ["#4f46e5", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#84cc16", "#f97316", "#0f766e", "#be123c"],
+  dividend: ["#f59e0b", "#0ea5e9", "#22c55e", "#ef4444", "#8b5cf6", "#14b8a6", "#f43f5e", "#84cc16", "#2563eb", "#d97706"],
+  asset: ["#0ea5e9", "#7c3aed", "#22c55e", "#f97316", "#ec4899", "#14b8a6", "#ef4444", "#eab308", "#2563eb", "#84cc16", "#be123c", "#0f766e", "#64748b"],
+  default: ["#0ea5e9", "#f97316", "#22c55e", "#ef4444", "#8b5cf6", "#14b8a6", "#eab308", "#ec4899"]
 };
 
 function chartPalette(name) {
@@ -364,6 +364,36 @@ function pathRadialSide(cx, cy, rx, ry, depth, angle) {
   return `M ${cx.toFixed(2)} ${cy.toFixed(2)} L ${edge.x.toFixed(2)} ${edge.y.toFixed(2)} L ${edge.x.toFixed(2)} ${(edge.y + depth).toFixed(2)} L ${cx.toFixed(2)} ${(cy + depth).toFixed(2)} Z`;
 }
 
+
+function build3DFullPie(entries, colors, options = {}) {
+  const large = Boolean(options.large);
+  const width = large ? 320 : 250;
+  const height = large ? 250 : 205;
+  const cx = width / 2;
+  const cy = large ? 92 : 76;
+  const rx = large ? 116 : 90;
+  const ry = large ? 62 : 48;
+  const depth = large ? 54 : 42;
+  const shadowY = cy + depth + (large ? 20 : 16);
+  const color = colors[0] || "#0ea5e9";
+  const top = shadeColor(color, 0.08);
+  const side = shadeColor(color, -0.16);
+  const sideDark = shadeColor(color, -0.28);
+  const edge = shadeColor(color, -0.08);
+  const highlight = rgba(shadeColor(color, 0.55), 0.24);
+  const frontSide = `M ${(cx - rx).toFixed(2)} ${cy.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 0 0 ${(cx + rx).toFixed(2)} ${cy.toFixed(2)} L ${(cx + rx).toFixed(2)} ${(cy + depth).toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 0 1 ${(cx - rx).toFixed(2)} ${(cy + depth).toFixed(2)} Z`;
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
+      <ellipse cx="${cx}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.46}" fill="rgba(2, 6, 23, 0.16)"></ellipse>
+      <path d="${frontSide}" fill="${side}" opacity="0.98"></path>
+      <ellipse cx="${cx}" cy="${cy + depth}" rx="${rx}" ry="${ry}" fill="${sideDark}" opacity="0.22"></ellipse>
+      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${top}" stroke="${edge}" stroke-width="1.15"></ellipse>
+      <ellipse cx="${cx}" cy="${cy - (large ? 5 : 4)}" rx="${rx * 0.84}" ry="${ry * 0.55}" fill="${highlight}"></ellipse>
+    </svg>
+  `;
+}
+
 function build3DPie(entries, colors, options = {}) {
   const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
   const large = Boolean(options.large);
@@ -377,6 +407,10 @@ function build3DPie(entries, colors, options = {}) {
   const explode = large ? 10 : 8;
   const rotation = -Math.PI / 2 - 0.42;
   const shadowY = cyBase + depth + (large ? 20 : 16);
+  const positiveEntries = entries.filter(([, value]) => Number(value || 0) > 0);
+  if (positiveEntries.length === 1) {
+    return build3DFullPie(positiveEntries, colors, options);
+  }
 
   let cursor = rotation;
   const slices = entries.map(([key, rawValue], index) => {
@@ -475,7 +509,7 @@ function loadInitialState() {
     saveState(initial);
     return normalizeState(initial);
   }
-  return normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], trades: [], income: [], targets: clone(SAMPLE_DATA.targets) });
+  return normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], transactions: [], trades: [], income: [], targets: clone(SAMPLE_DATA.targets), settings: { usdKrw: 1350 } });
 }
 
 function normalizeState(raw) {
@@ -485,7 +519,9 @@ function normalizeState(raw) {
 
   return {
     accounts: normalizedAccounts,
+    settings: normalizeSettings(raw.settings),
     holdings: normalizeRows(raw.holdings, accountByName, fallbackAccountId).map(normalizeHoldingRow),
+    transactions: normalizeRows(raw.transactions, accountByName, fallbackAccountId).map(normalizeTransactionRow),
     trades: normalizeRows(raw.trades, accountByName, "swing").map(normalizeTradeRow),
     income: normalizeRows(raw.income, accountByName, "dividend").map(normalizeIncomeRow),
     targets: normalizeRows(raw.targets, accountByName, "long").map(normalizeTargetRow)
@@ -548,10 +584,49 @@ function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizeCurrency(value, row = {}) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (raw === "USD" || raw === "$" || raw === "달러") return "USD";
+  if (raw === "KRW" || raw === "₩" || raw === "원화" || raw === "원") return "KRW";
+  return defaultCurrencyForRow(row);
+}
+
+function defaultCurrencyForRow(row = {}) {
+  const market = String(row.market || "").trim().toUpperCase();
+  const assetClass = String(row.assetClass || "");
+  const ticker = String(row.ticker || "").trim().toUpperCase();
+  if (ticker === "KRW" || assetClass === "현금") return "KRW";
+  if (market === "US" || market === "USA" || assetClass.startsWith("미국") || /^[A-Z.]{1,8}$/.test(ticker)) return "USD";
+  return "KRW";
+}
+
 function normalizeHoldingRow(row) {
   return {
     ...row,
-    _id: String(row._id || row.id || createId("holding"))
+    _id: String(row._id || row.id || createId("holding")),
+    currency: normalizeCurrency(row.currency, row),
+    quantity: Number(row.quantity || 0),
+    avgPrice: Number(row.avgPrice || 0),
+    currentPrice: Number(row.currentPrice || 0)
+  };
+}
+
+function normalizeSettings(settings = {}) {
+  const usdKrw = Number(settings.usdKrw || CONFIG.usdKrw || CONFIG.defaultUsdKrw || 1350);
+  return {
+    usdKrw: Number.isFinite(usdKrw) && usdKrw > 0 ? usdKrw : 1350
+  };
+}
+
+function normalizeTransactionRow(row) {
+  return {
+    ...row,
+    _id: String(row._id || row.id || createId("transaction")),
+    date: String(row.date || new Date().toISOString().slice(0, 10)),
+    type: String(row.type || "buy"),
+    currency: normalizeCurrency(row.currency, row),
+    quantity: Number(row.quantity || 0),
+    price: Number(row.price || 0)
   };
 }
 
@@ -672,12 +747,53 @@ function assetClassOptions(selectedClass) {
   }).join("");
 }
 
+function currencyOptions(selectedCurrency) {
+  const selected = normalizeCurrency(selectedCurrency);
+  return ["KRW", "USD"].map((currency) => `<option value="${currency}" ${currency === selected ? "selected" : ""}>${currency === "USD" ? "USD · 달러" : "KRW · 원화"}</option>`).join("");
+}
+
+function usdKrwRate() {
+  const rate = Number(state?.settings?.usdKrw || CONFIG.usdKrw || CONFIG.defaultUsdKrw || 1350);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1350;
+}
+
+function currencyRate(currency) {
+  return normalizeCurrency(currency) === "USD" ? usdKrwRate() : 1;
+}
+
+function holdingCurrency(row) {
+  return normalizeCurrency(row.currency, row);
+}
+
+function priceMoney(value, currency) {
+  const n = Number(value || 0);
+  if (privacyMode) return "••••";
+  const normalized = normalizeCurrency(currency);
+  const formatted = n.toLocaleString("ko-KR", { maximumFractionDigits: normalized === "USD" ? 2 : 0 });
+  return normalized === "USD" ? `$${formatted}` : `₩${formatted}`;
+}
+
+function transactionTypeLabel(type) {
+  const map = {
+    buy: "분할 매수",
+    sell: "분할 매도",
+    regular_buy: "적립식 매수",
+    cash_in: "추가 납입"
+  };
+  return map[type] || type || "-";
+}
+
+function transactionAmount(row) {
+  return Number(row.quantity || 0) * Number(row.price || 0) * currencyRate(row.currency);
+}
+
+
 function holdingValue(row) {
-  return Number(row.quantity || 0) * Number(row.currentPrice || 0);
+  return Number(row.quantity || 0) * Number(row.currentPrice || 0) * currencyRate(holdingCurrency(row));
 }
 
 function investedValue(row) {
-  return Number(row.quantity || 0) * Number(row.avgPrice || 0);
+  return Number(row.quantity || 0) * Number(row.avgPrice || 0) * currencyRate(holdingCurrency(row));
 }
 
 function tradePnl(row) {
@@ -910,7 +1026,7 @@ function renderAppShell() {
             <span>총 평가금액</span>
             <strong>${money(t.total)}</strong>
           </div>
-          <span class="pill">${pct(t.pnlRate)}</span>
+          <span class="pill return-pill ${t.pnlRate >= 0 ? "positive" : "negative"}">전체 수익률 ${pct(t.pnlRate)}</span>
         </div>
         <div class="hero-donut-shell">
           ${donutChart(byAccount, "3계좌 통합", true, "accounts")}
@@ -935,8 +1051,9 @@ function renderAppShell() {
     </nav>
 
     <section class="summary-grid showroom-metrics">
-      ${card("총 평가금액", money(t.total), pct(t.pnlRate))}
-      ${card("평가손익", money(t.pnl), t.pnl >= 0 ? "수익 구간" : "손실 구간")}
+      ${card("총 평가금액", money(t.total), `환율 ${money(usdKrwRate())}원/USD`)}
+      ${card("전체 수익률", `<span class="${t.pnlRate >= 0 ? "positive" : "negative"}">${pct(t.pnlRate)}</span>`, t.pnl >= 0 ? "수익 구간" : "손실 구간")}
+      ${card("평가손익", `<span class="${t.pnl >= 0 ? "positive" : "negative"}">${money(t.pnl)}</span>`, t.pnl >= 0 ? "수익 구간" : "손실 구간")}
       ${card("스윙 승률", pct(t.winRate), `${t.closedTrades}건 복기`)}
       ${card("누적 현금흐름", money(t.incomeNet), "배당+프리미엄 세후")}
     </section>
@@ -1279,7 +1396,7 @@ function renderTotalOverviewDetail() {
       </article>
       <article class="detail-subpanel">
         <div class="panel-head slim"><h3>자산군별 비중</h3><span>선택식 자산군 기준</span></div>
-        ${Object.keys(byAsset).length ? barList(byAsset) : empty("자산군 데이터가 없습니다.")}
+        ${Object.keys(byAsset).length ? assetPrincipalTable(state.holdings) : empty("자산군 데이터가 없습니다.")}
       </article>
     </section>
     <section class="detail-subpanel">
@@ -1309,7 +1426,7 @@ function renderAccountOverviewDetail(targetId) {
       </article>
       <article class="detail-subpanel">
         <div class="panel-head slim"><h3>자산군별 비중</h3><span>선택식 자산군 기준</span></div>
-        ${Object.keys(byAsset).length ? barList(byAsset) : empty("자산군 데이터가 없습니다.")}
+        ${Object.keys(byAsset).length ? assetPrincipalTable(account.holdings) : empty("자산군 데이터가 없습니다.")}
       </article>
     </section>
     <section class="detail-subpanel">
@@ -1482,7 +1599,7 @@ function renderAccounts() {
   return `
     <section class="panel">
       <div class="panel-head">
-        <h2>3계좌 평가금액 비중</h2>
+        <h2>종합 계좌 평가금액 비중</h2>
         <span>전체 자산에서 각 계좌가 차지하는 비중</span>
       </div>
       ${donutChart(byAccount, "계좌 비중", true, "accounts")}
@@ -1506,8 +1623,23 @@ function renderAccounts() {
     </section>
 
     <section class="panel">
-      <div class="panel-head"><h2>전체 보유 종목</h2><span>${state.holdings.length}개 항목</span></div>
+      <div class="panel-head"><h2>자산군별 원금 / 평가금액</h2><span>환율 적용 후 원화 기준</span></div>
+      ${assetPrincipalTable(state.holdings)}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>전체 보유 종목</h2><span>${state.holdings.length}개 항목 · 원금/평가금액 표시</span></div>
       ${holdingsTable(state.holdings, { actions: true })}
+    </section>
+
+    <section class="panel" id="transaction-editor-panel">
+      <div class="panel-head"><h2>분할 매수·매도·적립식 기록 추가</h2><span>날짜별 거래 기록을 남기고 보유 수량에 반영합니다</span></div>
+      ${transactionForm()}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>날짜별 매수·매도·적립식 기록</h2><span>${state.transactions.length}개 기록</span></div>
+      ${transactionTable(state.transactions)}
     </section>
 
     <section class="panel" id="holding-editor-panel">
@@ -1535,6 +1667,49 @@ function accountDetailCard(account) {
       <div class="panel-head slim"><h3>자산군 비중</h3><span>${escapeHtml(account.name)}</span></div>
       ${Object.keys(byAsset).length ? donutChart(byAsset, account.name, false, "asset") : empty("보유 종목이 없습니다.")}
     </article>
+  `;
+}
+
+
+function assetPrincipalTable(rows) {
+  if (!rows.length) return empty("자산군별 원금 데이터가 없습니다.");
+  const grouped = {};
+  rows.forEach((row) => {
+    const key = row.assetClass || "기타";
+    if (!grouped[key]) grouped[key] = { invested: 0, value: 0 };
+    grouped[key].invested += investedValue(row);
+    grouped[key].value += holdingValue(row);
+  });
+  const entries = Object.entries(grouped).sort((a, b) => b[1].value - a[1].value);
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>자산군</th>
+            <th>원금</th>
+            <th>평가금액</th>
+            <th>평가손익</th>
+            <th>수익률</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${entries.map(([assetClass, item]) => {
+            const pnl = item.value - item.invested;
+            const rate = item.invested ? (pnl / item.invested) * 100 : 0;
+            return `
+              <tr>
+                <td>${escapeHtml(assetClass)}</td>
+                <td class="num">${money(item.invested)}</td>
+                <td class="num">${money(item.value)}</td>
+                <td class="num ${pnl >= 0 ? "positive" : "negative"}">${money(pnl)}</td>
+                <td class="num ${rate >= 0 ? "positive" : "negative"}">${pct(rate)}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -1714,6 +1889,11 @@ function renderData() {
       <p>입력한 데이터는 각 표의 수정 / 삭제 버튼으로 언제든지 변경할 수 있습니다. 보유 종목과 장기투자 목표 비중은 계좌별 분석 화면에서, 스윙매매 복기와 배당·커버드콜 현금흐름은 각 모듈 화면에서 관리합니다.</p>
     </section>
     <section class="panel">
+      <div class="panel-head"><h2>환율 설정</h2><span>USD 자산을 원화 평가금액으로 환산합니다</span></div>
+      ${fxSettingsForm()}
+      <p class="muted">보유 종목에서 통화를 USD로 선택하면 평단과 현재가는 달러로 표시되고, 전체 평가금액과 계좌 비중은 위 환율을 적용한 원화 기준으로 계산됩니다.</p>
+    </section>
+    <section class="panel">
       <div class="panel-head"><h2>계좌 설정</h2><span>고객별 계좌명 변경 가능</span></div>
       ${accountSettingsForm()}
     </section>
@@ -1727,7 +1907,8 @@ function renderData() {
     <section class="grid-2">
       <article class="panel">
         <div class="panel-head"><h2>CSV 업로드</h2><span>accountId 컬럼으로 계좌를 구분합니다</span></div>
-        ${csvUploadBlock("holdings", "보유 종목 CSV", "accountId,ticker,name,assetClass,market,quantity,avgPrice,currentPrice")}
+        ${csvUploadBlock("holdings", "보유 종목 CSV", "accountId,ticker,name,assetClass,market,currency,quantity,avgPrice,currentPrice")}
+        ${csvUploadBlock("transactions", "날짜별 매수·매도·적립식 CSV", "date,accountId,type,ticker,name,assetClass,market,currency,quantity,price,memo")}
         ${csvUploadBlock("trades", "매매 복기 CSV", "accountId,entryDate,exitDate,ticker,strategy,entry,exit,quantity,entryReason,exitReason")}
         ${csvUploadBlock("income", "현금흐름 CSV", "accountId,month,ticker,type,gross,tax")}
         ${csvUploadBlock("targets", "장기투자 목표 비중 CSV", "accountId,assetClass,targetWeight")}
@@ -1749,6 +1930,7 @@ function renderData() {
       <div class="status-grid">
         <div><strong>${state.accounts.length}</strong><span>계좌</span></div>
         <div><strong>${state.holdings.length}</strong><span>보유 항목</span></div>
+        <div><strong>${state.transactions.length}</strong><span>날짜별 거래</span></div>
         <div><strong>${state.trades.length}</strong><span>매매 기록</span></div>
         <div><strong>${state.income.length}</strong><span>현금흐름</span></div>
         <div><strong>${state.targets.length}</strong><span>목표 비중</span></div>
@@ -1851,8 +2033,10 @@ function holdingsTable(rows, options = {}) {
             <th>이름</th>
             <th>자산군</th>
             <th>수량</th>
+            <th>통화</th>
             <th>평단</th>
             <th>현재가</th>
+            <th>원금</th>
             <th>평가금액</th>
             <th>손익률</th>
             ${showActions ? "<th>관리</th>" : ""}
@@ -1870,8 +2054,10 @@ function holdingsTable(rows, options = {}) {
                 <td>${label(row.name)}</td>
                 <td>${escapeHtml(row.assetClass || "-")}</td>
                 <td class="num">${money(row.quantity)}</td>
-                <td class="num">${money(row.avgPrice)}</td>
-                <td class="num">${money(row.currentPrice)}</td>
+                <td>${escapeHtml(holdingCurrency(row))}</td>
+                <td class="num">${priceMoney(row.avgPrice, holdingCurrency(row))}</td>
+                <td class="num">${priceMoney(row.currentPrice, holdingCurrency(row))}</td>
+                <td class="num">${money(invested)}</td>
                 <td class="num">${money(value)}</td>
                 <td class="num ${pnlRate >= 0 ? "positive" : "negative"}">${pct(pnlRate)}</td>
                 ${showActions ? `
@@ -1895,6 +2081,18 @@ function empty(text) {
   return `<div class="empty">${escapeHtml(text)}</div>`;
 }
 
+
+function fxSettingsForm() {
+  return `
+    <form id="fx-settings-form" class="form-grid fx-settings-form">
+      <label>USD/KRW 적용 환율
+        <input name="usdKrw" type="number" step="any" min="1" value="${escapeHtml(usdKrwRate())}" required />
+      </label>
+      <button class="primary" type="submit">환율 저장</button>
+    </form>
+  `;
+}
+
 function accountSettingsForm() {
   return `
     <form id="account-settings-form" class="account-settings-grid">
@@ -1916,6 +2114,7 @@ function holdingForm() {
   const mode = current ? "edit" : "create";
   const selectedAccountId = current?.accountId || "swing";
   const selectedAssetClass = current?.assetClass || "미국 개별주";
+  const selectedCurrency = current?.currency || defaultCurrencyForRow(current || { assetClass: selectedAssetClass });
 
   return `
     <form id="holding-form" class="form-grid holding-editor ${mode === "edit" ? "editing" : ""}">
@@ -1931,6 +2130,7 @@ function holdingForm() {
       <input name="name" placeholder="종목명" value="${escapeHtml(current?.name || "")}" />
       <select name="assetClass" required>${assetClassOptions(selectedAssetClass)}</select>
       <input name="market" placeholder="시장" value="${escapeHtml(current?.market || "")}" />
+      <select name="currency" required>${currencyOptions(selectedCurrency)}</select>
       <input name="quantity" type="number" step="any" placeholder="수량" value="${escapeHtml(current?.quantity ?? "")}" required />
       <input name="avgPrice" type="number" step="any" placeholder="평균단가" value="${escapeHtml(current?.avgPrice ?? "")}" required />
       <input name="currentPrice" type="number" step="any" placeholder="현재가" value="${escapeHtml(current?.currentPrice ?? "")}" required />
@@ -2024,6 +2224,79 @@ function targetForm(defaultAccountId = "long") {
   `;
 }
 
+
+function transactionForm() {
+  const today = new Date().toISOString().slice(0, 10);
+  return `
+    <form id="transaction-form" class="form-grid record-editor transaction-editor">
+      <input name="date" type="date" value="${today}" required />
+      <select name="accountId" required>${accountOptions("swing")}</select>
+      <select name="type" required>
+        <option value="buy">분할 매수</option>
+        <option value="sell">분할 매도</option>
+        <option value="regular_buy">적립식 매수</option>
+        <option value="cash_in">추가 납입</option>
+      </select>
+      <input name="ticker" placeholder="종목코드" required />
+      <input name="name" placeholder="종목명" />
+      <select name="assetClass" required>${assetClassOptions("미국 개별주")}</select>
+      <input name="market" placeholder="시장" />
+      <select name="currency" required>${currencyOptions("USD")}</select>
+      <input name="quantity" type="number" step="any" placeholder="수량" required />
+      <input name="price" type="number" step="any" placeholder="체결가 / 납입금액" required />
+      <input name="memo" placeholder="메모" />
+      <button class="primary" type="submit">날짜별 기록 추가</button>
+    </form>
+  `;
+}
+
+function transactionTable(rows) {
+  if (!rows.length) return empty("날짜별 매수·매도·적립식 기록이 없습니다.");
+  const sorted = rows.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>계좌</th>
+            <th>유형</th>
+            <th>종목</th>
+            <th>자산군</th>
+            <th>통화</th>
+            <th>수량</th>
+            <th>체결가</th>
+            <th>거래금액(원화)</th>
+            <th>메모</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map((row) => `
+            <tr>
+              <td>${escapeHtml(row.date || "-")}</td>
+              <td>${escapeHtml(accountName(row.accountId))}</td>
+              <td>${escapeHtml(transactionTypeLabel(row.type))}</td>
+              <td>${label(row.ticker)}</td>
+              <td>${escapeHtml(row.assetClass || "-")}</td>
+              <td>${escapeHtml(normalizeCurrency(row.currency, row))}</td>
+              <td class="num">${money(row.quantity)}</td>
+              <td class="num">${priceMoney(row.price, row.currency)}</td>
+              <td class="num">${money(transactionAmount(row))}</td>
+              <td>${escapeHtml(row.memo || "-")}</td>
+              <td>
+                <div class="table-actions">
+                  <button type="button" class="mini-button danger-mini" data-delete-transaction="${escapeHtml(row._id)}">삭제</button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function csvUploadBlock(type, title, headers) {
   return `
     <div class="csv-block">
@@ -2051,7 +2324,7 @@ function loadSampleData() {
 
 function startEmptyData() {
   if (!confirm("현재 브라우저에 저장된 데이터를 비우고 내 데이터로 새로 시작할까요? 필요하면 먼저 백업 파일을 저장하세요.")) return;
-  state = normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], trades: [], income: [], targets: [] });
+  state = normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], transactions: [], trades: [], income: [], targets: [], settings: state.settings });
   resetEditingState();
   activeView = "data";
   saveState();
@@ -2059,9 +2332,17 @@ function startEmptyData() {
 }
 
 function attachViewEvents() {
+  const fxSettingsFormEl = document.getElementById("fx-settings-form");
+  if (fxSettingsFormEl) {
+    fxSettingsFormEl.addEventListener("submit", handleFxSettingsSubmit);
+  }
   const holdingFormEl = document.getElementById("holding-form");
   if (holdingFormEl) {
     holdingFormEl.addEventListener("submit", handleHoldingSubmit);
+  }
+  const transactionFormEl = document.getElementById("transaction-form");
+  if (transactionFormEl) {
+    transactionFormEl.addEventListener("submit", handleTransactionSubmit);
   }
   const tradeFormEl = document.getElementById("trade-form");
   if (tradeFormEl) {
@@ -2144,6 +2425,18 @@ function attachViewEvents() {
       render();
     });
   }
+
+  document.querySelectorAll("[data-delete-transaction]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const item = state.transactions.find((row) => String(row._id) === String(button.dataset.deleteTransaction));
+      if (!item) return;
+      if (confirm(`${item.ticker || "선택한"} 날짜별 거래 기록을 삭제할까요? 보유 종목 수량은 자동 되돌림 처리되지 않습니다.`)) {
+        state.transactions = state.transactions.filter((row) => String(row._id) !== String(button.dataset.deleteTransaction));
+        saveState();
+        render();
+      }
+    });
+  });
 
 
   document.querySelectorAll("[data-edit-trade]").forEach((button) => {
@@ -2246,6 +2539,109 @@ function attachViewEvents() {
     });
   }
 
+}
+
+
+function handleFxSettingsSubmit(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const usdKrw = Number(data.usdKrw || 0);
+  if (!Number.isFinite(usdKrw) || usdKrw <= 0) {
+    alert("환율은 0보다 큰 숫자로 입력하세요.");
+    return;
+  }
+  state.settings = normalizeSettings({ ...state.settings, usdKrw });
+  saveState();
+  render();
+}
+
+function applyTransactionToHolding(transaction) {
+  const type = transaction.type;
+  if (!["buy", "sell", "regular_buy", "cash_in"].includes(type)) return;
+
+  if (type === "cash_in") {
+    const currency = normalizeCurrency(transaction.currency, transaction);
+    const cashTicker = currency === "USD" ? "USD-CASH" : "KRW";
+    const existing = state.holdings.find((row) => row.accountId === transaction.accountId && String(row.ticker || "").toUpperCase() === cashTicker);
+    const amount = Number(transaction.quantity || 0) * Number(transaction.price || 0);
+    if (existing) {
+      existing.quantity = 1;
+      existing.avgPrice = Number(existing.avgPrice || 0) + amount;
+      existing.currentPrice = Number(existing.currentPrice || 0) + amount;
+      existing.currency = currency;
+      existing.assetClass = "현금";
+    } else {
+      state.holdings.push(normalizeHoldingRow({
+        accountId: transaction.accountId,
+        ticker: cashTicker,
+        name: currency === "USD" ? "달러 예수금" : "원화 예수금",
+        assetClass: "현금",
+        market: currency === "USD" ? "US" : "KR",
+        currency,
+        quantity: 1,
+        avgPrice: amount,
+        currentPrice: amount
+      }));
+    }
+    return;
+  }
+
+  const ticker = String(transaction.ticker || "").trim();
+  if (!ticker) return;
+  const existing = state.holdings.find((row) => row.accountId === transaction.accountId && String(row.ticker || "").trim().toUpperCase() === ticker.toUpperCase());
+  const qty = Number(transaction.quantity || 0);
+  const price = Number(transaction.price || 0);
+  if (!qty || !price) return;
+
+  if (type === "sell") {
+    if (!existing) return;
+    const nextQty = Math.max(0, Number(existing.quantity || 0) - qty);
+    if (nextQty <= 0) {
+      state.holdings = state.holdings.filter((row) => String(row._id) !== String(existing._id));
+    } else {
+      existing.quantity = nextQty;
+      existing.currentPrice = price;
+      existing.currency = normalizeCurrency(transaction.currency, transaction);
+    }
+    return;
+  }
+
+  if (existing) {
+    const oldQty = Number(existing.quantity || 0);
+    const nextQty = oldQty + qty;
+    existing.avgPrice = nextQty ? ((oldQty * Number(existing.avgPrice || 0)) + (qty * price)) / nextQty : price;
+    existing.quantity = nextQty;
+    existing.currentPrice = price;
+    existing.name = transaction.name || existing.name;
+    existing.assetClass = transaction.assetClass || existing.assetClass;
+    existing.market = transaction.market || existing.market;
+    existing.currency = normalizeCurrency(transaction.currency, transaction);
+  } else {
+    state.holdings.push(normalizeHoldingRow({
+      accountId: transaction.accountId,
+      ticker: transaction.ticker,
+      name: transaction.name,
+      assetClass: transaction.assetClass,
+      market: transaction.market,
+      currency: transaction.currency,
+      quantity: qty,
+      avgPrice: price,
+      currentPrice: price
+    }));
+  }
+}
+
+function handleTransactionSubmit(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  ["quantity", "price"].forEach((field) => {
+    if (data[field] !== undefined && data[field] !== "") data[field] = Number(data[field]);
+  });
+  const transaction = normalizeTransactionRow(data);
+  state.transactions.push(transaction);
+  applyTransactionToHolding(transaction);
+  saveState();
+  render();
 }
 
 function handleHoldingSubmit(event) {
@@ -2367,7 +2763,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "sales-starter-v2-three-accounts",
+    version: "portfolio-dashboard-fx-timeline-v13",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -2411,6 +2807,7 @@ function handleCsvImport(event) {
       const rows = parseCsv(reader.result);
       const numericByCollection = {
         holdings: ["quantity", "avgPrice", "currentPrice"],
+        transactions: ["quantity", "price"],
         trades: ["entry", "exit", "quantity"],
         income: ["gross", "tax"],
         targets: ["targetWeight"]
@@ -2419,15 +2816,18 @@ function handleCsvImport(event) {
       const normalizedRows = normalizeRows(parsedRows, buildAccountNameMap(state.accounts), defaultAccountIdFor(collection));
       const normalizedWithIds = collection === "holdings"
         ? normalizedRows.map(normalizeHoldingRow)
-        : collection === "trades"
-          ? normalizedRows.map(normalizeTradeRow)
-          : collection === "income"
-            ? normalizedRows.map(normalizeIncomeRow)
-            : collection === "targets"
-              ? normalizedRows.map(normalizeTargetRow)
-              : normalizedRows;
+        : collection === "transactions"
+          ? normalizedRows.map(normalizeTransactionRow)
+          : collection === "trades"
+            ? normalizedRows.map(normalizeTradeRow)
+            : collection === "income"
+              ? normalizedRows.map(normalizeIncomeRow)
+              : collection === "targets"
+                ? normalizedRows.map(normalizeTargetRow)
+                : normalizedRows;
       state[collection] = state[collection].concat(normalizedWithIds);
       if (collection === "holdings") editingHoldingId = null;
+      if (collection === "transactions") normalizedWithIds.forEach(applyTransactionToHolding);
       if (collection === "trades") editingTradeId = null;
       if (collection === "income") editingIncomeId = null;
       if (collection === "targets") editingTargetId = null;
@@ -2444,6 +2844,7 @@ function handleCsvImport(event) {
 }
 
 function defaultAccountIdFor(collection) {
+  if (collection === "transactions") return state.accounts[0]?.id || "swing";
   if (collection === "trades") return "swing";
   if (collection === "income") return "dividend";
   if (collection === "targets") return "long";
