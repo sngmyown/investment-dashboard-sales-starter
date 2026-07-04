@@ -551,16 +551,100 @@ function renderPasswordGate() {
   });
 }
 
+
+function heroAccountRows(accounts) {
+  const grandTotal = accounts.reduce((sum, account) => sum + Number(account.total || 0), 0);
+  return accounts.map((account) => {
+    const share = grandTotal ? (Number(account.total || 0) / grandTotal) * 100 : 0;
+    const pnlClass = account.pnl >= 0 ? "positive" : "negative";
+    return `
+      <div class="hero-account-row">
+        <div class="hero-account-main">
+          <span>${escapeHtml(account.name)}</span>
+          <strong>${money(account.total)}</strong>
+        </div>
+        <div class="hero-account-sub">
+          <span>${pct(share)} of total</span>
+          <span class="${pnlClass}">${money(account.pnl)}</span>
+        </div>
+        <div class="hero-progress"><i style="width:${Math.max(2, Math.min(100, share)).toFixed(2)}%"></i></div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderShowroomProof() {
+  return `
+    <section class="trust-strip">
+      <div>
+        <strong>증권사 로그인 없음</strong>
+        <span>계정·비밀번호·API 키를 요청하지 않습니다.</span>
+      </div>
+      <div>
+        <strong>브라우저 로컬 저장</strong>
+        <span>기본형은 고객 브라우저에 데이터를 저장합니다.</span>
+      </div>
+      <div>
+        <strong>기록·관리 도구</strong>
+        <span>종목 추천, 매수·매도 신호, 자동매매가 아닙니다.</span>
+      </div>
+    </section>
+  `;
+}
+
+function renderSellingPoints() {
+  return `
+    <section class="showcase-grid">
+      <article class="panel feature-panel">
+        <span class="feature-number">01</span>
+        <h2>3계좌를 처음부터 분리</h2>
+        <p>스윙, 장기투자, 배당주 계좌를 입력 단계부터 분리해서 전체 현황과 계좌별 비중을 동시에 보여줍니다.</p>
+      </article>
+      <article class="panel feature-panel">
+        <span class="feature-number">02</span>
+        <h2>엑셀보다 보기 쉬운 쇼룸형 UI</h2>
+        <p>공개 데모에서는 첫인상과 이해 속도를 우선합니다. 고객은 입력 폼보다 정리된 화면을 먼저 보게 됩니다.</p>
+      </article>
+      <article class="panel feature-panel">
+        <span class="feature-number">03</span>
+        <h2>Premium 확장 여지</h2>
+        <p>Sunburst 차트는 기본형이 아니라 고급형 옵션으로 분리해 패키지 차별화에 사용합니다.</p>
+      </article>
+    </section>
+  `;
+}
+
+function renderDemoFlow() {
+  return `
+    <section class="panel flow-panel">
+      <div class="panel-head">
+        <div>
+          <h2>데모 사용 흐름</h2>
+          <span>고객이 링크를 열었을 때 이해해야 하는 순서</span>
+        </div>
+      </div>
+      <div class="flow-steps">
+        <div><strong>1</strong><span>전체 계좌 비중 확인</span></div>
+        <div><strong>2</strong><span>스윙·장기·배당 계좌 분리 확인</span></div>
+        <div><strong>3</strong><span>복기와 현금흐름 모듈 확인</span></div>
+        <div><strong>4</strong><span>데이터 관리·프라이버시 구조 확인</span></div>
+      </div>
+    </section>
+  `;
+}
+
 function renderAppShell() {
   const app = document.getElementById("app");
   const t = totals();
+  const accountSummary = accountTotals();
+  const byAccount = Object.fromEntries(accountSummary.map((account) => [account.name, account.total]));
+
   app.innerHTML = `
-    <header class="topbar">
-      <div>
-        <div class="eyebrow">${escapeHtml(CONFIG.modeLabel || "Sales Dashboard")}</div>
-        <h1>${escapeHtml(CONFIG.title || "투자 관리 대시보드")}</h1>
-        <p class="subcopy">${escapeHtml(CONFIG.description || "고객이 직접 입력한 투자 데이터를 정리하고 시각화하는 웹 대시보드입니다.")}</p>
-      </div>
+    <header class="site-header">
+      <a class="brand-mark" href="#" data-view="overview" aria-label="대시보드 홈">
+        <span>3A</span>
+        <strong>Portfolio Studio</strong>
+      </a>
       <div class="top-actions">
         <button id="privacy-toggle" class="ghost">${privacyMode ? "프라이버시 해제" : "프라이버시 모드"}</button>
         <button id="export-backup" class="ghost">백업 내보내기</button>
@@ -568,10 +652,42 @@ function renderAppShell() {
       </div>
     </header>
 
-    <section class="notice">
-      <strong>운영 원칙:</strong>
-      증권사 계정·비밀번호·API 키를 요청하지 않습니다. 기본형은 고객 브라우저 localStorage에 데이터를 저장하며, 운영자 서버에 금융 데이터를 별도로 저장하지 않는 구조입니다.
+    <section class="showroom-hero">
+      <div class="hero-copy">
+        <div class="eyebrow">${escapeHtml(CONFIG.modeLabel || "Sales Showroom")}</div>
+        <h1>${escapeHtml(CONFIG.title || "3계좌 통합 투자관리 대시보드")}</h1>
+        <p class="subcopy">${escapeHtml(CONFIG.description || "스윙, 장기투자, 배당주 계좌를 한 화면에서 분리해서 보여주는 웹 대시보드입니다.")}</p>
+        <div class="hero-actions">
+          <button class="primary" data-view="overview">데모 화면 보기</button>
+          <button class="secondary" data-view="data">입력 구조 확인</button>
+          <button class="ghost" data-view="privacy">프라이버시 안내</button>
+        </div>
+        <div class="hero-badges">
+          <span>3계좌 분리</span>
+          <span>로컬 저장</span>
+          <span>CSV 업로드</span>
+          <span>백업/복원</span>
+        </div>
+      </div>
+
+      <aside class="hero-dashboard-card" aria-label="데모 대시보드 미리보기">
+        <div class="hero-card-head">
+          <div>
+            <span>총 평가금액</span>
+            <strong>${money(t.total)}</strong>
+          </div>
+          <span class="pill">${pct(t.pnlRate)}</span>
+        </div>
+        <div class="hero-donut-shell">
+          ${donutChart(byAccount, "3계좌 통합", true)}
+        </div>
+        <div class="hero-account-stack">
+          ${heroAccountRows(accountSummary)}
+        </div>
+      </aside>
     </section>
+
+    ${renderShowroomProof()}
 
     <nav class="tabs" aria-label="대시보드 메뉴">
       ${tabButton("overview", "전체 현황")}
@@ -582,7 +698,7 @@ function renderAppShell() {
       ${tabButton("privacy", "프라이버시·면책")}
     </nav>
 
-    <section class="summary-grid">
+    <section class="summary-grid showroom-metrics">
       ${card("총 평가금액", money(t.total), pct(t.pnlRate))}
       ${card("평가손익", money(t.pnl), t.pnl >= 0 ? "수익 구간" : "손실 구간")}
       ${card("스윙 승률", pct(t.winRate), `${t.closedTrades}건 복기`)}
@@ -593,7 +709,8 @@ function renderAppShell() {
   `;
 
   document.querySelectorAll("[data-view]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
       activeView = button.dataset.view;
       render();
     });
@@ -637,18 +754,22 @@ function renderActiveView() {
 function renderOverview() {
   const byAccount = Object.fromEntries(accountTotals().map((account) => [account.name, account.total]));
   const latestIncome = Object.entries(sumBy(state.income, (row) => row.month, (row) => Number(row.gross || 0) - Number(row.tax || 0))).sort();
+  const byAsset = sumBy(state.holdings, (row) => row.assetClass || "기타", holdingValue);
+
   return `
-    <section class="panel hero-composition">
+    <section class="panel hero-composition showroom-panel">
       <div class="panel-head">
         <div>
+          <span class="section-kicker">Portfolio composition</span>
           <h2>전체 계좌 통합 현황</h2>
           <span>스윙·장기투자·배당주 계좌를 합산한 전체 상황과 계좌별 비중</span>
         </div>
+        <span class="pill">Public demo</span>
       </div>
       <div class="composition-layout">
-        <div class="master-donut-card">
+        <div class="master-donut-card elevated-card">
+          <div class="card-label">전체 계좌 비중</div>
           ${donutChart(byAccount, "전체 계좌", true)}
-          ${barList(byAccount)}
         </div>
         <div class="account-pie-grid">
           ${accountTotals().map((account) => accountPieCard(account)).join("")}
@@ -656,16 +777,20 @@ function renderOverview() {
       </div>
     </section>
 
+    ${renderSellingPoints()}
+
     <section class="grid-2">
-      <article class="panel">
-        <div class="panel-head"><h2>계좌별 평가금액</h2><span>3계좌 분리 입력 기준</span></div>
-        ${barList(byAccount)}
+      <article class="panel chart-panel">
+        <div class="panel-head"><h2>자산군 비중</h2><span>선택식 자산군 기준으로 집계</span></div>
+        ${donutChart(byAsset, "자산군", false)}
       </article>
-      <article class="panel">
+      <article class="panel chart-panel">
         <div class="panel-head"><h2>월별 현금흐름</h2><span>배당과 커버드콜 프리미엄 합산</span></div>
         ${latestIncome.length ? barList(Object.fromEntries(latestIncome)) : empty("등록된 현금흐름이 없습니다.")}
       </article>
     </section>
+
+    ${renderDemoFlow()}
 
     <section class="panel">
       <div class="panel-head"><h2>보유 종목 요약</h2><span>각 항목은 반드시 계좌에 연결됩니다</span></div>
@@ -679,9 +804,10 @@ function renderOverview() {
 function accountPieCard(account) {
   const byHolding = sumBy(account.holdings, (row) => row.ticker || row.name, holdingValue);
   return `
-    <article class="account-pie-card">
+    <article class="account-pie-card account-${escapeHtml(account.id)}">
       <div class="account-pie-header">
         <div>
+          <span class="mini-kicker">${escapeHtml(account.type || "account")}</span>
           <h3>${escapeHtml(account.name)}</h3>
           <p>${escapeHtml(account.description || "계좌별 보유 종목 비중")}</p>
         </div>
