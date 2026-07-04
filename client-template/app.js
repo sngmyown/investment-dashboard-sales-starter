@@ -453,6 +453,7 @@ let selectedOverviewTarget = "total";
 let editingHoldingId = null;
 let editingTradeId = null;
 let editingIncomeId = null;
+let editingTargetId = null;
 let privacyMode = false;
 
 function clone(value) {
@@ -487,7 +488,7 @@ function normalizeState(raw) {
     holdings: normalizeRows(raw.holdings, accountByName, fallbackAccountId).map(normalizeHoldingRow),
     trades: normalizeRows(raw.trades, accountByName, "swing").map(normalizeTradeRow),
     income: normalizeRows(raw.income, accountByName, "dividend").map(normalizeIncomeRow),
-    targets: normalizeRows(raw.targets, accountByName, "long")
+    targets: normalizeRows(raw.targets, accountByName, "long").map(normalizeTargetRow)
   };
 }
 
@@ -568,6 +569,14 @@ function normalizeIncomeRow(row) {
   };
 }
 
+function normalizeTargetRow(row) {
+  return {
+    ...row,
+    _id: String(row._id || row.id || createId("target")),
+    targetWeight: Number(row.targetWeight || 0)
+  };
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -639,6 +648,14 @@ function incomeById(incomeId) {
 
 function editingIncome() {
   return editingIncomeId ? incomeById(editingIncomeId) : null;
+}
+
+function targetById(targetId) {
+  return state.targets.find((target) => String(target._id) === String(targetId));
+}
+
+function editingTarget() {
+  return editingTargetId ? targetById(editingTargetId) : null;
 }
 
 function accountOptions(selectedAccountId) {
@@ -1339,7 +1356,12 @@ function renderAccounts() {
         <h2>${escapeHtml(longAccount.name)} 목표 비중 점검</h2>
         <span>장기투자 계좌 내부 자산군 기준</span>
       </div>
-      ${targetRows.length ? targetTable(targetRows) : empty("장기투자 목표 비중 데이터가 없습니다.")}
+      ${targetRows.length ? targetTable(targetRows, { actions: true }) : empty("장기투자 목표 비중 데이터가 없습니다.")}
+    </section>
+
+    <section class="panel" id="target-editor-panel">
+      <div class="panel-head"><h2>${editingTarget() ? "장기투자 목표 비중 수정" : "장기투자 목표 비중 추가"}</h2><span>${editingTarget() ? "선택한 목표 비중 항목을 수정합니다" : "자산군별 목표 비중을 추가합니다"}</span></div>
+      ${targetForm(longAccount.id)}
     </section>
 
     <section class="panel">
@@ -1375,19 +1397,39 @@ function accountDetailCard(account) {
   `;
 }
 
-function targetTable(rows) {
+function targetTable(rows, options = {}) {
+  const showActions = Boolean(options.actions);
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>자산군</th><th>현재 금액</th><th>현재 비중</th><th>목표 비중</th><th>괴리율</th></tr></thead>
+        <thead>
+          <tr>
+            <th>계좌</th>
+            <th>자산군</th>
+            <th>현재 금액</th>
+            <th>현재 비중</th>
+            <th>목표 비중</th>
+            <th>괴리율</th>
+            ${showActions ? "<th>관리</th>" : ""}
+          </tr>
+        </thead>
         <tbody>
           ${rows.map((row) => `
-            <tr>
+            <tr class="${editingTargetId && String(editingTargetId) === String(row._id) ? "editing-row" : ""}">
+              <td>${escapeHtml(accountName(row.accountId))}</td>
               <td>${escapeHtml(row.assetClass)}</td>
               <td class="num">${money(row.currentValue)}</td>
               <td class="num">${pct(row.currentWeight)}</td>
               <td class="num">${pct(Number(row.targetWeight || 0))}</td>
               <td class="num ${row.gap > 0 ? "positive" : row.gap < 0 ? "negative" : ""}">${pct(row.gap)}</td>
+              ${showActions ? `
+                <td>
+                  <div class="table-actions">
+                    <button type="button" class="mini-button" data-edit-target="${escapeHtml(row._id)}">수정</button>
+                    <button type="button" class="mini-button danger-mini" data-delete-target="${escapeHtml(row._id)}">삭제</button>
+                  </div>
+                </td>
+              ` : ""}
             </tr>
           `).join("")}
         </tbody>
@@ -1528,7 +1570,7 @@ function renderData() {
   return `
     <section class="panel prose">
       <h2>입력 데이터 관리 안내</h2>
-      <p>입력한 데이터는 각 표의 수정 / 삭제 버튼으로 언제든지 변경할 수 있습니다. 보유 종목은 계좌별 분석 화면에서, 스윙매매 복기와 배당·커버드콜 현금흐름은 각 모듈 화면에서 관리합니다.</p>
+      <p>입력한 데이터는 각 표의 수정 / 삭제 버튼으로 언제든지 변경할 수 있습니다. 보유 종목과 장기투자 목표 비중은 계좌별 분석 화면에서, 스윙매매 복기와 배당·커버드콜 현금흐름은 각 모듈 화면에서 관리합니다.</p>
     </section>
     <section class="panel">
       <div class="panel-head"><h2>계좌 설정</h2><span>고객별 계좌명 변경 가능</span></div>
@@ -1547,6 +1589,7 @@ function renderData() {
         ${csvUploadBlock("holdings", "보유 종목 CSV", "accountId,ticker,name,assetClass,market,quantity,avgPrice,currentPrice")}
         ${csvUploadBlock("trades", "매매 복기 CSV", "accountId,entryDate,exitDate,ticker,strategy,entry,exit,quantity,entryReason,exitReason")}
         ${csvUploadBlock("income", "현금흐름 CSV", "accountId,month,ticker,type,gross,tax")}
+        ${csvUploadBlock("targets", "장기투자 목표 비중 CSV", "accountId,assetClass,targetWeight")}
       </article>
       <article class="panel">
         <div class="panel-head"><h2>데이터 제어</h2><span>고객 통제권 제공</span></div>
@@ -1565,6 +1608,7 @@ function renderData() {
         <div><strong>${state.holdings.length}</strong><span>보유 항목</span></div>
         <div><strong>${state.trades.length}</strong><span>매매 기록</span></div>
         <div><strong>${state.income.length}</strong><span>현금흐름</span></div>
+        <div><strong>${state.targets.length}</strong><span>목표 비중</span></div>
       </div>
     </section>
   `;
@@ -1813,6 +1857,30 @@ function incomeForm() {
   `;
 }
 
+function targetForm(defaultAccountId = "long") {
+  const current = editingTarget();
+  const mode = current ? "edit" : "create";
+  const selectedAccountId = current?.accountId || defaultAccountId || "long";
+  const selectedAssetClass = current?.assetClass || "미국 ETF";
+
+  return `
+    <form id="target-form" class="form-grid record-editor target-editor ${mode === "edit" ? "editing" : ""}">
+      ${current ? `<input type="hidden" name="_id" value="${escapeHtml(current._id)}" />` : ""}
+      ${current ? `
+        <div class="form-notice">
+          <strong>장기투자 목표 비중 수정 중</strong>
+          <span>${escapeHtml(current.assetClass || "-")} 목표 비중을 수정하고 있습니다. 저장하면 기존 목표값이 새 값으로 교체됩니다.</span>
+        </div>
+      ` : ""}
+      <select name="accountId" required>${accountOptions(selectedAccountId)}</select>
+      <select name="assetClass" required>${assetClassOptions(selectedAssetClass)}</select>
+      <input name="targetWeight" type="number" step="any" min="0" max="100" placeholder="목표 비중(%)" value="${escapeHtml(current?.targetWeight ?? "")}" required />
+      <button class="primary" type="submit">${current ? "수정 저장" : "목표 비중 추가"}</button>
+      ${current ? `<button id="cancel-target-edit" class="secondary" type="button">수정 취소</button>` : ""}
+    </form>
+  `;
+}
+
 function csvUploadBlock(type, title, headers) {
   return `
     <div class="csv-block">
@@ -1835,6 +1903,10 @@ function attachViewEvents() {
   const incomeFormEl = document.getElementById("income-form");
   if (incomeFormEl) {
     incomeFormEl.addEventListener("submit", handleIncomeSubmit);
+  }
+  const targetFormEl = document.getElementById("target-form");
+  if (targetFormEl) {
+    targetFormEl.addEventListener("submit", handleTargetSubmit);
   }
   const accountSettingsFormEl = document.getElementById("account-settings-form");
   if (accountSettingsFormEl) {
@@ -1873,6 +1945,7 @@ function attachViewEvents() {
         if (String(editingHoldingId) === String(button.dataset.deleteHolding)) editingHoldingId = null;
         editingTradeId = null;
         editingIncomeId = null;
+        editingTargetId = null;
         saveState();
         render();
       }
@@ -1940,6 +2013,7 @@ function attachViewEvents() {
       if (confirm(`${name} 배당·커버드콜 현금흐름 기록을 삭제할까요?`)) {
         state.income = state.income.filter((row) => String(row._id) !== String(button.dataset.deleteIncome));
         if (String(editingIncomeId) === String(button.dataset.deleteIncome)) editingIncomeId = null;
+        editingTargetId = null;
         saveState();
         render();
       }
@@ -1954,6 +2028,39 @@ function attachViewEvents() {
     });
   }
 
+  document.querySelectorAll("[data-edit-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingTargetId = button.dataset.editTarget;
+      activeView = "accounts";
+      render();
+      requestAnimationFrame(() => {
+        document.getElementById("target-editor-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-delete-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = targetById(button.dataset.deleteTarget);
+      if (!target) return;
+      const name = target.assetClass || "선택한 목표 비중";
+      if (confirm(`${name} 장기투자 목표 비중 항목을 삭제할까요?`)) {
+        state.targets = state.targets.filter((row) => String(row._id) !== String(button.dataset.deleteTarget));
+        if (String(editingTargetId) === String(button.dataset.deleteTarget)) editingTargetId = null;
+        saveState();
+        render();
+      }
+    });
+  });
+
+  const cancelTargetEdit = document.getElementById("cancel-target-edit");
+  if (cancelTargetEdit) {
+    cancelTargetEdit.addEventListener("click", () => {
+      editingTargetId = null;
+      render();
+    });
+  }
+
   const loadSample = document.getElementById("load-sample");
   if (loadSample) {
     loadSample.addEventListener("click", () => {
@@ -1961,6 +2068,7 @@ function attachViewEvents() {
       editingHoldingId = null;
       editingTradeId = null;
       editingIncomeId = null;
+      editingTargetId = null;
       saveState();
       render();
     });
@@ -1973,6 +2081,7 @@ function attachViewEvents() {
         editingHoldingId = null;
         editingTradeId = null;
         editingIncomeId = null;
+        editingTargetId = null;
         saveState();
         render();
       }
@@ -2059,6 +2168,31 @@ function handleIncomeSubmit(event) {
 }
 
 
+function handleTargetSubmit(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  if (data.targetWeight !== undefined && data.targetWeight !== "") data.targetWeight = Number(data.targetWeight);
+
+  const existingId = data._id || editingTargetId;
+  delete data._id;
+
+  if (existingId) {
+    const index = state.targets.findIndex((row) => String(row._id) === String(existingId));
+    if (index >= 0) {
+      state.targets[index] = normalizeTargetRow({ ...state.targets[index], ...data, _id: existingId });
+    } else {
+      state.targets.push(normalizeTargetRow({ ...data, _id: existingId }));
+    }
+    editingTargetId = null;
+  } else {
+    state.targets.push(normalizeTargetRow(data));
+  }
+
+  saveState();
+  render();
+}
+
+
 function handleAccountSettingsSubmit(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -2098,6 +2232,7 @@ function importBackup(event) {
       editingHoldingId = null;
       editingTradeId = null;
       editingIncomeId = null;
+      editingTargetId = null;
       saveState();
       render();
     } catch (error) {
@@ -2118,7 +2253,8 @@ function handleCsvImport(event) {
       const numericByCollection = {
         holdings: ["quantity", "avgPrice", "currentPrice"],
         trades: ["entry", "exit", "quantity"],
-        income: ["gross", "tax"]
+        income: ["gross", "tax"],
+        targets: ["targetWeight"]
       };
       const parsedRows = rows.map((row) => coerceCsvRow(row, numericByCollection[collection] || []));
       const normalizedRows = normalizeRows(parsedRows, buildAccountNameMap(state.accounts), defaultAccountIdFor(collection));
@@ -2128,13 +2264,17 @@ function handleCsvImport(event) {
           ? normalizedRows.map(normalizeTradeRow)
           : collection === "income"
             ? normalizedRows.map(normalizeIncomeRow)
-            : normalizedRows;
+            : collection === "targets"
+              ? normalizedRows.map(normalizeTargetRow)
+              : normalizedRows;
       state[collection] = state[collection].concat(normalizedWithIds);
       if (collection === "holdings") editingHoldingId = null;
       if (collection === "trades") editingTradeId = null;
       if (collection === "income") editingIncomeId = null;
+      if (collection === "targets") editingTargetId = null;
       editingTradeId = null;
       editingIncomeId = null;
+      editingTargetId = null;
       saveState();
       render();
     } catch (error) {
