@@ -295,6 +295,156 @@ function chartPalette(name) {
   return CHART_PALETTES[name] || CHART_PALETTES.default;
 }
 
+
+function hexToRgb(hex) {
+  const safe = String(hex || "#94a3b8").replace("#", "").trim();
+  const normalized = safe.length === 3 ? safe.split("").map((ch) => ch + ch).join("") : safe.padEnd(6, "0").slice(0, 6);
+  const num = parseInt(normalized, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+function rgbToHex({ r, g, b }) {
+  const clamp = (value) => Math.max(0, Math.min(255, Math.round(value)));
+  return `#${[clamp(r), clamp(g), clamp(b)].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function shadeColor(hex, amount) {
+  const rgb = hexToRgb(hex);
+  const adjust = (channel) => {
+    if (amount >= 0) return channel + (255 - channel) * amount;
+    return channel * (1 + amount);
+  };
+  return rgbToHex({ r: adjust(rgb.r), g: adjust(rgb.g), b: adjust(rgb.b) });
+}
+
+function rgba(hex, alpha) {
+  const rgb = hexToRgb(hex);
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function ellipsePoint(cx, cy, rx, ry, angle) {
+  return { x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) };
+}
+
+function pathTopSlice(cx, cy, rx, ry, start, end) {
+  const startPoint = ellipsePoint(cx, cy, rx, ry, start);
+  const endPoint = ellipsePoint(cx, cy, rx, ry, end);
+  const largeArc = end - start > Math.PI ? 1 : 0;
+  return `M ${cx.toFixed(2)} ${cy.toFixed(2)} L ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 1 ${endPoint.x.toFixed(2)} ${endPoint.y.toFixed(2)} Z`;
+}
+
+function visibleFrontIntervals(start, end) {
+  const TAU = Math.PI * 2;
+  let normalizedStart = start;
+  let normalizedEnd = end;
+  while (normalizedEnd <= normalizedStart) normalizedEnd += TAU;
+  const intervals = [];
+  const candidates = [
+    [0, Math.PI],
+    [TAU, TAU + Math.PI],
+    [-TAU, -TAU + Math.PI]
+  ];
+  for (const [frontStart, frontEnd] of candidates) {
+    const from = Math.max(normalizedStart, frontStart);
+    const to = Math.min(normalizedEnd, frontEnd);
+    if (to > from + 0.0001) intervals.push([from, to]);
+  }
+  return intervals;
+}
+
+function pathOuterSide(cx, cy, rx, ry, depth, start, end) {
+  const startPoint = ellipsePoint(cx, cy, rx, ry, start);
+  const endPoint = ellipsePoint(cx, cy, rx, ry, end);
+  const largeArc = end - start > Math.PI ? 1 : 0;
+  return `M ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 1 ${endPoint.x.toFixed(2)} ${endPoint.y.toFixed(2)} L ${endPoint.x.toFixed(2)} ${(endPoint.y + depth).toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 0 ${startPoint.x.toFixed(2)} ${(startPoint.y + depth).toFixed(2)} Z`;
+}
+
+function pathRadialSide(cx, cy, rx, ry, depth, angle) {
+  const edge = ellipsePoint(cx, cy, rx, ry, angle);
+  return `M ${cx.toFixed(2)} ${cy.toFixed(2)} L ${edge.x.toFixed(2)} ${edge.y.toFixed(2)} L ${edge.x.toFixed(2)} ${(edge.y + depth).toFixed(2)} L ${cx.toFixed(2)} ${(cy + depth).toFixed(2)} Z`;
+}
+
+function build3DPie(entries, colors, options = {}) {
+  const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
+  const large = Boolean(options.large);
+  const width = large ? 320 : 250;
+  const height = large ? 250 : 205;
+  const cxBase = width / 2;
+  const cyBase = large ? 92 : 76;
+  const rx = large ? 116 : 90;
+  const ry = large ? 62 : 48;
+  const depth = large ? 54 : 42;
+  const explode = large ? 10 : 8;
+  const rotation = -Math.PI / 2 - 0.42;
+  const shadowY = cyBase + depth + (large ? 20 : 16);
+
+  let cursor = rotation;
+  const slices = entries.map(([key, rawValue], index) => {
+    const value = Number(rawValue || 0);
+    const sliceAngle = total ? (value / total) * Math.PI * 2 : 0;
+    const start = cursor;
+    const end = cursor + sliceAngle;
+    cursor = end;
+    const mid = (start + end) / 2;
+    const offsetX = Math.cos(mid) * explode;
+    const offsetY = Math.sin(mid) * explode * 0.78;
+    const cx = cxBase + offsetX;
+    const cy = cyBase + offsetY;
+    const color = colors[index % colors.length];
+    return {
+      key,
+      value,
+      start,
+      end,
+      mid,
+      cx,
+      cy,
+      color,
+      top: shadeColor(color, 0.08),
+      side: shadeColor(color, -0.16),
+      sideDark: shadeColor(color, -0.28),
+      edge: shadeColor(color, -0.08),
+      highlight: rgba(shadeColor(color, 0.55), 0.22)
+    };
+  });
+
+  const sideParts = [];
+  const topParts = [];
+
+  slices.forEach((slice, index) => {
+    visibleFrontIntervals(slice.start, slice.end).forEach(([from, to], intervalIndex) => {
+      sideParts.push(`<path d="${pathOuterSide(slice.cx, slice.cy, rx, ry, depth, from, to)}" fill="${slice.side}" opacity="0.98"></path>`);
+    });
+
+    const startVisible = Math.sin(slice.start) > -0.14;
+    const endVisible = Math.sin(slice.end) > -0.14;
+    if (startVisible) {
+      sideParts.push(`<path d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" opacity="0.94"></path>`);
+    }
+    if (endVisible) {
+      sideParts.push(`<path d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${slice.sideDark}" opacity="0.9"></path>`);
+    }
+  });
+
+  slices
+    .slice()
+    .sort((a, b) => Math.sin(a.mid) - Math.sin(b.mid))
+    .forEach((slice) => {
+      topParts.push(`<path d="${pathTopSlice(slice.cx, slice.cy, rx, ry, slice.start, slice.end)}" fill="${slice.top}" stroke="${slice.edge}" stroke-width="1.1"></path>`);
+      topParts.push(`<path d="${pathTopSlice(slice.cx, slice.cy - (large ? 4 : 3), rx * 0.985, ry * 0.78, slice.start, slice.end)}" fill="${slice.highlight}"></path>`);
+    });
+
+  const shadow = `<ellipse cx="${cxBase}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.46}" fill="rgba(2, 6, 23, 0.16)"></ellipse>`;
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
+      ${shadow}
+      ${sideParts.join("")}
+      ${topParts.join("")}
+    </svg>
+  `;
+}
+
 const STORAGE_KEY = CONFIG.storageKey || "portfolio-dashboard-local-v2";
 const SESSION_KEY = `${STORAGE_KEY}:session`;
 let state = loadInitialState();
@@ -1351,18 +1501,18 @@ function donutChart(data, centerLabel, large, paletteName = "default") {
   const entries = Object.entries(data).filter(([, value]) => Number(value) > 0);
   if (!entries.length) return empty("차트에 표시할 데이터가 없습니다.");
   const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
-  let cursor = 0;
   const colors = chartPalette(paletteName);
-  const segments = entries.map(([key, value], index) => {
-    const start = cursor;
-    const end = cursor + (Number(value) / total) * 100;
-    cursor = end;
-    return `${colors[index % colors.length]} ${start}% ${end}%`;
-  });
+  const chart = build3DPie(entries, colors, { large });
   return `
-    <div class="donut-wrap ${large ? "large" : ""} palette-${escapeHtml(paletteName)}">
-      <div class="donut" style="background: conic-gradient(${segments.join(", ")});">
-        <div class="donut-center"><span>${escapeHtml(centerLabel)}</span><strong>${money(total)}</strong></div>
+    <div class="donut-wrap ${large ? "large" : ""} palette-${escapeHtml(paletteName)}" style="grid-template-columns:${large ? "280px minmax(0, 1fr)" : "220px minmax(0, 1fr)"}; align-items:center;">
+      <div class="pie3d-column" style="display:flex; flex-direction:column; align-items:center; gap:${large ? 14 : 12}px; min-width:0;">
+        <div class="pie3d-stage ${large ? "large" : ""}" style="width:${large ? 280 : 220}px; max-width:100%;">
+          ${chart}
+        </div>
+        <div class="pie3d-metric ${large ? "large" : ""}" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; width:${large ? 240 : 198}px; max-width:100%; padding:${large ? "14px 18px" : "12px 15px"}; border-radius:18px; border:1px solid rgba(148,163,184,0.18); background:linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.38)); box-shadow:0 14px 28px rgba(15,23,42,0.10); backdrop-filter: blur(10px); text-align:center;">
+          <span style="font-size:${large ? "0.86rem" : "0.78rem"}; color:#475569; font-weight:700; letter-spacing:0.02em;">${escapeHtml(centerLabel)}</span>
+          <strong style="font-size:${large ? "1.25rem" : "1.02rem"}; color:#0f172a; letter-spacing:-0.04em; font-variant-numeric:tabular-nums;">${money(total)}</strong>
+        </div>
       </div>
       <div class="legend-list">
         ${entries.map(([key, value], index) => {
