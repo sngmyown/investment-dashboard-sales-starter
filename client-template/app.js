@@ -450,6 +450,7 @@ const SESSION_KEY = `${STORAGE_KEY}:session`;
 let state = loadInitialState();
 let activeView = "overview";
 let selectedOverviewTarget = "total";
+let editingHoldingId = null;
 let privacyMode = false;
 
 function clone(value) {
@@ -481,7 +482,7 @@ function normalizeState(raw) {
 
   return {
     accounts: normalizedAccounts,
-    holdings: normalizeRows(raw.holdings, accountByName, fallbackAccountId),
+    holdings: normalizeRows(raw.holdings, accountByName, fallbackAccountId).map(normalizeHoldingRow),
     trades: normalizeRows(raw.trades, accountByName, "swing"),
     income: normalizeRows(raw.income, accountByName, "dividend"),
     targets: normalizeRows(raw.targets, accountByName, "long")
@@ -540,6 +541,17 @@ function normalizeRows(rows, accountByName, fallbackAccountId) {
   });
 }
 
+function createId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeHoldingRow(row) {
+  return {
+    ...row,
+    _id: String(row._id || row.id || createId("holding"))
+  };
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -587,6 +599,14 @@ function accountById(accountId) {
 
 function accountName(accountId) {
   return accountById(accountId).name;
+}
+
+function holdingById(holdingId) {
+  return state.holdings.find((holding) => String(holding._id) === String(holdingId));
+}
+
+function editingHolding() {
+  return editingHoldingId ? holdingById(editingHoldingId) : null;
 }
 
 function accountOptions(selectedAccountId) {
@@ -1292,11 +1312,11 @@ function renderAccounts() {
 
     <section class="panel">
       <div class="panel-head"><h2>전체 보유 종목</h2><span>${state.holdings.length}개 항목</span></div>
-      ${holdingsTable(state.holdings)}
+      ${holdingsTable(state.holdings, { actions: true })}
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><h2>보유 종목 직접 추가</h2><span>계좌 선택 후 입력</span></div>
+    <section class="panel" id="holding-editor-panel">
+      <div class="panel-head"><h2>${editingHolding() ? "보유 종목 수정" : "보유 종목 직접 추가"}</h2><span>${editingHolding() ? "선택한 항목의 계좌, 종목, 수량, 가격을 수정합니다" : "계좌 선택 후 입력"}</span></div>
       ${holdingForm()}
     </section>
   `;
@@ -1559,19 +1579,33 @@ function barList(data) {
   </div>`;
 }
 
-function holdingsTable(rows) {
+function holdingsTable(rows, options = {}) {
   if (!rows.length) return empty("보유 종목 데이터가 없습니다.");
+  const showActions = Boolean(options.actions);
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>계좌</th><th>종목</th><th>이름</th><th>자산군</th><th>수량</th><th>평단</th><th>현재가</th><th>평가금액</th><th>손익률</th></tr></thead>
+        <thead>
+          <tr>
+            <th>계좌</th>
+            <th>종목</th>
+            <th>이름</th>
+            <th>자산군</th>
+            <th>수량</th>
+            <th>평단</th>
+            <th>현재가</th>
+            <th>평가금액</th>
+            <th>손익률</th>
+            ${showActions ? "<th>관리</th>" : ""}
+          </tr>
+        </thead>
         <tbody>
           ${rows.map((row) => {
             const invested = investedValue(row);
             const value = holdingValue(row);
             const pnlRate = invested ? ((value - invested) / invested) * 100 : 0;
             return `
-              <tr>
+              <tr class="${editingHoldingId && String(editingHoldingId) === String(row._id) ? "editing-row" : ""}">
                 <td>${escapeHtml(accountName(row.accountId))}</td>
                 <td>${label(row.ticker)}</td>
                 <td>${label(row.name)}</td>
@@ -1581,6 +1615,14 @@ function holdingsTable(rows) {
                 <td class="num">${money(row.currentPrice)}</td>
                 <td class="num">${money(value)}</td>
                 <td class="num ${pnlRate >= 0 ? "positive" : "negative"}">${pct(pnlRate)}</td>
+                ${showActions ? `
+                  <td>
+                    <div class="table-actions">
+                      <button type="button" class="mini-button" data-edit-holding="${escapeHtml(row._id)}">수정</button>
+                      <button type="button" class="mini-button danger-mini" data-delete-holding="${escapeHtml(row._id)}">삭제</button>
+                    </div>
+                  </td>
+                ` : ""}
               </tr>
             `;
           }).join("")}
@@ -1611,17 +1653,30 @@ function accountSettingsForm() {
 }
 
 function holdingForm() {
+  const current = editingHolding();
+  const mode = current ? "edit" : "create";
+  const selectedAccountId = current?.accountId || "swing";
+  const selectedAssetClass = current?.assetClass || "미국 개별주";
+
   return `
-    <form id="holding-form" class="form-grid">
-      <select name="accountId" required>${accountOptions("swing")}</select>
-      <input name="ticker" placeholder="종목코드" required />
-      <input name="name" placeholder="종목명" />
-      <select name="assetClass" required>${assetClassOptions("미국 개별주")}</select>
-      <input name="market" placeholder="시장" />
-      <input name="quantity" type="number" step="any" placeholder="수량" required />
-      <input name="avgPrice" type="number" step="any" placeholder="평균단가" required />
-      <input name="currentPrice" type="number" step="any" placeholder="현재가" required />
-      <button class="primary" type="submit">보유 종목 추가</button>
+    <form id="holding-form" class="form-grid holding-editor ${mode === "edit" ? "editing" : ""}">
+      ${current ? `<input type="hidden" name="_id" value="${escapeHtml(current._id)}" />` : ""}
+      ${current ? `
+        <div class="form-notice">
+          <strong>보유 종목 수정 중</strong>
+          <span>${escapeHtml(current.ticker || "-")} 항목을 수정하고 있습니다. 저장하면 기존 항목이 새 값으로 교체됩니다.</span>
+        </div>
+      ` : ""}
+      <select name="accountId" required>${accountOptions(selectedAccountId)}</select>
+      <input name="ticker" placeholder="종목코드" value="${escapeHtml(current?.ticker || "")}" required />
+      <input name="name" placeholder="종목명" value="${escapeHtml(current?.name || "")}" />
+      <select name="assetClass" required>${assetClassOptions(selectedAssetClass)}</select>
+      <input name="market" placeholder="시장" value="${escapeHtml(current?.market || "")}" />
+      <input name="quantity" type="number" step="any" placeholder="수량" value="${escapeHtml(current?.quantity ?? "")}" required />
+      <input name="avgPrice" type="number" step="any" placeholder="평균단가" value="${escapeHtml(current?.avgPrice ?? "")}" required />
+      <input name="currentPrice" type="number" step="any" placeholder="현재가" value="${escapeHtml(current?.currentPrice ?? "")}" required />
+      <button class="primary" type="submit">${current ? "수정 저장" : "보유 종목 추가"}</button>
+      ${current ? `<button id="cancel-holding-edit" class="secondary" type="button">수정 취소</button>` : ""}
     </form>
   `;
 }
@@ -1671,7 +1726,7 @@ function csvUploadBlock(type, title, headers) {
 function attachViewEvents() {
   const holdingFormEl = document.getElementById("holding-form");
   if (holdingFormEl) {
-    holdingFormEl.addEventListener("submit", (event) => handleFormSubmit(event, "holdings", ["quantity", "avgPrice", "currentPrice"]));
+    holdingFormEl.addEventListener("submit", handleHoldingSubmit);
   }
   const tradeFormEl = document.getElementById("trade-form");
   if (tradeFormEl) {
@@ -1697,17 +1752,44 @@ function attachViewEvents() {
       }
     });
   });
-  document.querySelectorAll(".detail-open-button").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openOverviewDetail(button.dataset.detailTarget || "total");
+  document.querySelectorAll("[data-edit-holding]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingHoldingId = button.dataset.editHolding;
+      activeView = "accounts";
+      render();
+      requestAnimationFrame(() => {
+        document.getElementById("holding-editor-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     });
   });
+
+  document.querySelectorAll("[data-delete-holding]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const holding = holdingById(button.dataset.deleteHolding);
+      if (!holding) return;
+      const name = holding.ticker || holding.name || "선택한 항목";
+      if (confirm(`${name} 보유 종목을 삭제할까요?`)) {
+        state.holdings = state.holdings.filter((row) => String(row._id) !== String(button.dataset.deleteHolding));
+        if (String(editingHoldingId) === String(button.dataset.deleteHolding)) editingHoldingId = null;
+        saveState();
+        render();
+      }
+    });
+  });
+
+  const cancelHoldingEdit = document.getElementById("cancel-holding-edit");
+  if (cancelHoldingEdit) {
+    cancelHoldingEdit.addEventListener("click", () => {
+      editingHoldingId = null;
+      render();
+    });
+  }
 
   const loadSample = document.getElementById("load-sample");
   if (loadSample) {
     loadSample.addEventListener("click", () => {
-      state = clone(SAMPLE_DATA);
+      state = normalizeState(clone(SAMPLE_DATA));
+      editingHoldingId = null;
       saveState();
       render();
     });
@@ -1717,11 +1799,38 @@ function attachViewEvents() {
     clearData.addEventListener("click", () => {
       if (confirm("브라우저에 저장된 대시보드 데이터를 모두 삭제할까요?")) {
         state = normalizeState({ accounts: clone(ACCOUNT_PRESETS), holdings: [], trades: [], income: [], targets: clone(SAMPLE_DATA.targets) });
+        editingHoldingId = null;
         saveState();
         render();
       }
     });
   }
+}
+
+function handleHoldingSubmit(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  ["quantity", "avgPrice", "currentPrice"].forEach((field) => {
+    if (data[field] !== undefined && data[field] !== "") data[field] = Number(data[field]);
+  });
+
+  const existingId = data._id || editingHoldingId;
+  delete data._id;
+
+  if (existingId) {
+    const index = state.holdings.findIndex((row) => String(row._id) === String(existingId));
+    if (index >= 0) {
+      state.holdings[index] = normalizeHoldingRow({ ...state.holdings[index], ...data, _id: existingId });
+    } else {
+      state.holdings.push(normalizeHoldingRow({ ...data, _id: existingId }));
+    }
+    editingHoldingId = null;
+  } else {
+    state.holdings.push(normalizeHoldingRow(data));
+  }
+
+  saveState();
+  render();
 }
 
 function handleFormSubmit(event, collection, numericFields) {
@@ -1771,6 +1880,7 @@ function importBackup(event) {
       const parsed = JSON.parse(reader.result);
       const data = parsed.data || parsed;
       state = normalizeState(data);
+      editingHoldingId = null;
       saveState();
       render();
     } catch (error) {
@@ -1794,7 +1904,9 @@ function handleCsvImport(event) {
         income: ["gross", "tax"]
       };
       const parsedRows = rows.map((row) => coerceCsvRow(row, numericByCollection[collection] || []));
-      state[collection] = state[collection].concat(normalizeRows(parsedRows, buildAccountNameMap(state.accounts), defaultAccountIdFor(collection)));
+      const normalizedRows = normalizeRows(parsedRows, buildAccountNameMap(state.accounts), defaultAccountIdFor(collection));
+      state[collection] = state[collection].concat(collection === "holdings" ? normalizedRows.map(normalizeHoldingRow) : normalizedRows);
+      if (collection === "holdings") editingHoldingId = null;
       saveState();
       render();
     } catch (error) {
