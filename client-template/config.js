@@ -22,3 +22,4 @@ window.DASHBOARD_CONFIG = {
   ],
   "enableSunburst": false
 };
+
