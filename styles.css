@@ -1,4 +1,3 @@
-
 :root {
   color-scheme: dark;
   --bg: #0f172a;
@@ -321,6 +320,22 @@ tr:last-child td {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(14, 165, 233, 0.74), rgba(52, 211, 153, 0.78));
+}
+
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-list span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.72rem;
+  color: #bfdbfe;
+  background: rgba(56, 189, 248, 0.08);
+  font-size: 0.9rem;
 }
 
 .form-grid {
