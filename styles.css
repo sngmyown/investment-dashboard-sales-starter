@@ -1,3 +1,4 @@
+
 :root {
   color-scheme: dark;
   --bg: #0f172a;
@@ -1339,3 +1340,118 @@ button,
     text-align: center;
   }
 }
+
+/* Clickable overview detail cards */
+.detail-card-trigger {
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.detail-card-trigger:hover,
+.detail-card-trigger:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.62);
+  box-shadow: 0 18px 58px rgba(14, 165, 233, 0.12);
+}
+
+.detail-card-trigger.selected {
+  border-color: rgba(52, 211, 153, 0.72);
+  background:
+    linear-gradient(180deg, rgba(52, 211, 153, 0.09), rgba(255, 255, 255, 0.035));
+  box-shadow: 0 20px 64px rgba(52, 211, 153, 0.11);
+}
+
+.detail-card-trigger.selected::before {
+  content: "선택됨";
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  border: 1px solid rgba(52, 211, 153, 0.42);
+  border-radius: 999px;
+  padding: 0.28rem 0.56rem;
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.32);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.detail-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.interaction-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.detail-open-button {
+  flex: 0 0 auto;
+  padding: 0.54rem 0.72rem;
+  border-color: rgba(56, 189, 248, 0.34);
+  color: #bae6fd;
+  background: rgba(56, 189, 248, 0.08);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.overview-detail-panel {
+  scroll-margin-top: 22px;
+  border-color: rgba(56, 189, 248, 0.32);
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 22rem),
+    rgba(17, 24, 39, 0.88);
+}
+
+.detail-summary {
+  margin-bottom: 16px;
+}
+
+.detail-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.detail-subpanel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.032);
+}
+
+.panel-head.slim {
+  margin-bottom: 12px;
+}
+
+.panel-head.slim h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+@media (max-width: 860px) {
+  .detail-section-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detail-open-button {
+    width: 100%;
+  }
+}
+
