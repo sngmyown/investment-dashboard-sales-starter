@@ -285,6 +285,7 @@ const STORAGE_KEY = CONFIG.storageKey || "portfolio-dashboard-local-v2";
 const SESSION_KEY = `${STORAGE_KEY}:session`;
 let state = loadInitialState();
 let activeView = "overview";
+let selectedOverviewTarget = "total";
 let privacyMode = false;
 
 function clone(value) {
@@ -767,15 +768,21 @@ function renderOverview() {
         <span class="pill">Public demo</span>
       </div>
       <div class="composition-layout">
-        <div class="master-donut-card elevated-card">
+        <div class="master-donut-card elevated-card detail-card-trigger ${selectedOverviewTarget === "total" ? "selected" : ""}" data-detail-target="total" tabindex="0" aria-label="전체 계좌 상세 패널 열기">
           <div class="card-label">전체 계좌 비중</div>
           ${donutChart(byAccount, "전체 계좌", true)}
+          <div class="detail-card-footer">
+            <span class="interaction-hint">더블 클릭 시 상세 패널로 들어갑니다.</span>
+            <button type="button" class="detail-open-button" data-detail-target="total">상세 보기 →</button>
+          </div>
         </div>
         <div class="account-pie-grid">
           ${accountTotals().map((account) => accountPieCard(account)).join("")}
         </div>
       </div>
     </section>
+
+    ${renderOverviewDetailPanel()}
 
     ${renderSellingPoints()}
 
@@ -804,7 +811,7 @@ function renderOverview() {
 function accountPieCard(account) {
   const byHolding = sumBy(account.holdings, (row) => row.ticker || row.name, holdingValue);
   return `
-    <article class="account-pie-card account-${escapeHtml(account.id)}">
+    <article class="account-pie-card account-${escapeHtml(account.id)} detail-card-trigger ${selectedOverviewTarget === account.id ? "selected" : ""}" data-detail-target="${escapeHtml(account.id)}" tabindex="0" aria-label="${escapeHtml(account.name)} 상세 패널 열기">
       <div class="account-pie-header">
         <div>
           <span class="mini-kicker">${escapeHtml(account.type || "account")}</span>
@@ -818,9 +825,243 @@ function accountPieCard(account) {
         <span>손익 <strong class="${account.pnl >= 0 ? "positive" : "negative"}">${money(account.pnl)}</strong></span>
         <span>수익률 <strong class="${account.pnlRate >= 0 ? "positive" : "negative"}">${pct(account.pnlRate)}</strong></span>
       </div>
+      <div class="detail-card-footer">
+        <span class="interaction-hint">더블 클릭 시 상세 패널로 들어갑니다.</span>
+        <button type="button" class="detail-open-button" data-detail-target="${escapeHtml(account.id)}">상세 보기 →</button>
+      </div>
     </article>
   `;
 }
+
+function detailTargetMeta(targetId) {
+  if (targetId === "total") {
+    return {
+      title: "전체 계좌",
+      description: "3개 계좌의 평가금액, 계좌별 비중, 자산군 비중, 상위 보유 종목을 자세히 확인할 수 있습니다."
+    };
+  }
+
+  const account = accountTotals().find((item) => item.id === targetId) || accountById(targetId);
+  const detailCopy = {
+    swing: "보유 종목, 최근 매매 복기, 승률, 평균 보유기간, 손익비를 자세히 확인할 수 있습니다.",
+    long: "보유 종목, 목표 비중, 현재 비중, 괴리율, 리밸런싱 점검 항목을 자세히 확인할 수 있습니다.",
+    dividend: "보유 종목, 월별 배당금, 커버드콜 프리미엄, 현금흐름 기록을 자세히 확인할 수 있습니다."
+  };
+
+  return {
+    title: account.name,
+    description: detailCopy[account.type] || "보유 종목, 자산군 비중, 손익, 관련 기록을 자세히 확인할 수 있습니다."
+  };
+}
+
+function openOverviewDetail(targetId) {
+  const meta = detailTargetMeta(targetId);
+  const confirmed = confirm(`${meta.title} 상세 패널로 들어갑니다.\n\n${meta.description}\n\n들어가시겠습니까?`);
+  if (!confirmed) return;
+  selectedOverviewTarget = targetId || "total";
+  render();
+  const panel = document.getElementById("overview-detail-panel");
+  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderOverviewDetailPanel() {
+  const targetId = selectedOverviewTarget || "total";
+  const meta = detailTargetMeta(targetId);
+  return `
+    <section id="overview-detail-panel" class="panel overview-detail-panel">
+      <div class="panel-head">
+        <div>
+          <span class="section-kicker">Selected detail</span>
+          <h2>${escapeHtml(meta.title)} 상세 패널</h2>
+          <span>${escapeHtml(meta.description)}</span>
+        </div>
+        <span class="pill">선택됨</span>
+      </div>
+      ${targetId === "total" ? renderTotalOverviewDetail() : renderAccountOverviewDetail(targetId)}
+    </section>
+  `;
+}
+
+function renderTotalOverviewDetail() {
+  const t = totals();
+  const accountSummary = accountTotals();
+  const byAccount = Object.fromEntries(accountSummary.map((account) => [account.name, account.total]));
+  const byAsset = sumBy(state.holdings, (row) => row.assetClass || "기타", holdingValue);
+  const topHoldings = state.holdings
+    .slice()
+    .sort((a, b) => holdingValue(b) - holdingValue(a))
+    .slice(0, 6);
+
+  return `
+    <section class="summary-grid compact detail-summary">
+      ${card("총 평가금액", money(t.total), "3계좌 합산")}
+      ${card("총 평가손익", money(t.pnl), pct(t.pnlRate))}
+      ${card("누적 현금흐름", money(t.incomeNet), "배당+프리미엄 세후")}
+    </section>
+    <section class="detail-section-grid">
+      <article class="detail-subpanel">
+        <div class="panel-head slim"><h3>계좌별 비중</h3><span>전체 계좌 기준</span></div>
+        ${donutChart(byAccount, "전체", false)}
+      </article>
+      <article class="detail-subpanel">
+        <div class="panel-head slim"><h3>자산군별 비중</h3><span>선택식 자산군 기준</span></div>
+        ${Object.keys(byAsset).length ? barList(byAsset) : empty("자산군 데이터가 없습니다.")}
+      </article>
+    </section>
+    <section class="detail-subpanel">
+      <div class="panel-head slim"><h3>상위 보유 종목</h3><span>평가금액 기준 상위 6개</span></div>
+      ${holdingsTable(topHoldings)}
+    </section>
+  `;
+}
+
+function renderAccountOverviewDetail(targetId) {
+  const account = accountTotals().find((item) => item.id === targetId);
+  if (!account) return empty("선택한 계좌를 찾을 수 없습니다.");
+
+  const byHolding = sumBy(account.holdings, (row) => row.ticker || row.name, holdingValue);
+  const byAsset = sumBy(account.holdings, (row) => row.assetClass || "기타", holdingValue);
+
+  return `
+    <section class="summary-grid compact detail-summary">
+      ${card("평가금액", money(account.total), `${account.holdings.length}개 보유`)}
+      ${card("평가손익", money(account.pnl), pct(account.pnlRate))}
+      ${card("현금흐름", money(account.incomeNet), "세후 기준")}
+    </section>
+    <section class="detail-section-grid">
+      <article class="detail-subpanel">
+        <div class="panel-head slim"><h3>종목별 비중</h3><span>${escapeHtml(account.name)}</span></div>
+        ${Object.keys(byHolding).length ? donutChart(byHolding, account.name, false) : empty("보유 종목이 없습니다.")}
+      </article>
+      <article class="detail-subpanel">
+        <div class="panel-head slim"><h3>자산군별 비중</h3><span>선택식 자산군 기준</span></div>
+        ${Object.keys(byAsset).length ? barList(byAsset) : empty("자산군 데이터가 없습니다.")}
+      </article>
+    </section>
+    <section class="detail-subpanel">
+      <div class="panel-head slim"><h3>보유 종목</h3><span>${escapeHtml(account.name)}에 연결된 항목</span></div>
+      ${holdingsTable(account.holdings)}
+    </section>
+    ${account.type === "swing" ? renderSwingOverviewDetail(account) : ""}
+    ${account.type === "long" ? renderLongOverviewDetail(account) : ""}
+    ${account.type === "dividend" ? renderDividendOverviewDetail(account) : ""}
+  `;
+}
+
+function renderSwingOverviewDetail(account) {
+  const rows = account.trades.map((row) => ({ ...row, pnl: tradePnl(row), days: daysBetween(row.entryDate, row.exitDate) }));
+  const closedRows = rows.filter((row) => Number(row.exit));
+  const wins = closedRows.filter((row) => row.pnl > 0).length;
+  const avgDays = closedRows.length ? closedRows.reduce((sum, row) => sum + Number(row.days || 0), 0) / closedRows.length : 0;
+  const grossProfit = closedRows.filter((row) => row.pnl > 0).reduce((sum, row) => sum + row.pnl, 0);
+  const grossLoss = Math.abs(closedRows.filter((row) => row.pnl < 0).reduce((sum, row) => sum + row.pnl, 0));
+  const profitFactor = grossLoss ? grossProfit / grossLoss : grossProfit ? Infinity : 0;
+
+  return `
+    <section class="summary-grid compact detail-summary">
+      ${card("스윙 승률", pct(closedRows.length ? (wins / closedRows.length) * 100 : 0), `${closedRows.length}건 청산`)}
+      ${card("평균 보유기간", `${avgDays.toFixed(1)}일`, "청산 거래 기준")}
+      ${card("손익비 지표", profitFactor === Infinity ? "∞" : profitFactor.toFixed(2), "Gross Profit / Gross Loss")}
+    </section>
+    <section class="detail-subpanel">
+      <div class="panel-head slim"><h3>최근 매매 복기</h3><span>스윙 계좌 기록</span></div>
+      ${tradeRowsTable(rows.slice(-5).reverse())}
+    </section>
+  `;
+}
+
+function renderLongOverviewDetail(account) {
+  const currentByAsset = sumBy(account.holdings, (row) => row.assetClass || "기타", holdingValue);
+  const accountTotal = account.holdings.reduce((sum, row) => sum + holdingValue(row), 0);
+  const targetRows = state.targets.filter((target) => target.accountId === account.id).map((target) => {
+    const currentValue = currentByAsset[target.assetClass] || 0;
+    const currentWeight = accountTotal ? (currentValue / accountTotal) * 100 : 0;
+    const gap = currentWeight - Number(target.targetWeight || 0);
+    return { ...target, currentValue, currentWeight, gap };
+  });
+
+  return `
+    <section class="detail-subpanel">
+      <div class="panel-head slim"><h3>목표 비중 점검</h3><span>장기투자 계좌 리밸런싱 확인</span></div>
+      ${targetRows.length ? targetTable(targetRows) : empty("장기투자 목표 비중 데이터가 없습니다.")}
+    </section>
+  `;
+}
+
+function renderDividendOverviewDetail(account) {
+  const rows = state.income.filter((row) => row.accountId === account.id);
+  const byMonth = sumBy(rows, (row) => row.month, (row) => Number(row.gross || 0) - Number(row.tax || 0));
+  const byType = sumBy(rows, (row) => row.type || "미분류", (row) => Number(row.gross || 0) - Number(row.tax || 0));
+
+  return `
+    <section class="detail-section-grid">
+      <article class="detail-subpanel">
+        <div class="panel-head slim"><h3>월별 현금흐름</h3><span>세후 기준</span></div>
+        ${Object.keys(byMonth).length ? barList(byMonth) : empty("월별 현금흐름 데이터가 없습니다.")}
+      </article>
+      <article class="detail-subpanel">
+        <div class="panel-head slim"><h3>현금흐름 유형</h3><span>배당 / 옵션 프리미엄</span></div>
+        ${Object.keys(byType).length ? barList(byType) : empty("유형별 현금흐름 데이터가 없습니다.")}
+      </article>
+    </section>
+    <section class="detail-subpanel">
+      <div class="panel-head slim"><h3>최근 현금흐름 기록</h3><span>배당주 투자 계좌</span></div>
+      ${incomeRowsTable(rows.slice(-6).reverse())}
+    </section>
+  `;
+}
+
+function tradeRowsTable(rows) {
+  if (!rows.length) return empty("매매 복기 데이터가 없습니다.");
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>진입일</th><th>청산일</th><th>종목</th><th>전략</th><th>손익</th><th>보유일</th><th>진입 사유</th><th>청산 사유</th></tr></thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td>${escapeHtml(row.entryDate || "-")}</td>
+              <td>${escapeHtml(row.exitDate || "-")}</td>
+              <td>${label(row.ticker)}</td>
+              <td>${escapeHtml(row.strategy || "-")}</td>
+              <td class="num ${row.pnl >= 0 ? "positive" : "negative"}">${money(row.pnl)}</td>
+              <td class="num">${row.days ?? "-"}</td>
+              <td>${escapeHtml(row.entryReason || "-")}</td>
+              <td>${escapeHtml(row.exitReason || "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function incomeRowsTable(rows) {
+  if (!rows.length) return empty("현금흐름 데이터가 없습니다.");
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>월</th><th>종목/계약</th><th>유형</th><th>세전</th><th>세금</th><th>세후</th></tr></thead>
+        <tbody>
+          ${rows.map((row) => {
+            const net = Number(row.gross || 0) - Number(row.tax || 0);
+            return `
+              <tr>
+                <td>${escapeHtml(row.month || "-")}</td>
+                <td>${label(row.ticker)}</td>
+                <td>${escapeHtml(row.type || "-")}</td>
+                <td class="num">${money(row.gross)}</td>
+                <td class="num">${money(row.tax)}</td>
+                <td class="num">${money(net)}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 
 function renderPremiumSunburstBlock() {
   if (CONFIG.enableSunburst) {
@@ -1283,6 +1524,22 @@ function attachViewEvents() {
   document.querySelectorAll("[data-csv]").forEach((input) => {
     input.addEventListener("change", handleCsvImport);
   });
+  document.querySelectorAll(".detail-card-trigger").forEach((card) => {
+    card.addEventListener("dblclick", () => openOverviewDetail(card.dataset.detailTarget || "total"));
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openOverviewDetail(card.dataset.detailTarget || "total");
+      }
+    });
+  });
+  document.querySelectorAll(".detail-open-button").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openOverviewDetail(button.dataset.detailTarget || "total");
+    });
+  });
+
   const loadSample = document.getElementById("load-sample");
   if (loadSample) {
     loadSample.addEventListener("click", () => {
@@ -1443,3 +1700,4 @@ function parseCsv(text) {
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", render);
 }
+
