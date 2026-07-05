@@ -2384,3 +2384,89 @@ tr.editing-row {
   }
 }
 
+
+
+/* pie-wall-tooltip-fix-v16
+   - 파이 차트 옆 범례를 제거하고 hover tooltip으로 이름·비중·금액 표시
+   - 모든 조각의 외곽/방사형 벽면을 색으로 채워 빈 벽면처럼 보이는 문제 보정 */
+.pie3d-tooltip-wrap {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;
+  gap: 10px !important;
+  overflow: visible;
+}
+
+.pie3d-stage {
+  position: relative;
+  overflow: visible;
+}
+
+.pie3d-slice {
+  cursor: help;
+  outline: none;
+  transition: filter 0.16s ease, opacity 0.16s ease;
+  pointer-events: auto;
+}
+
+.pie3d-slice:hover,
+.pie3d-slice:focus-visible {
+  filter: brightness(1.08) saturate(1.08);
+}
+
+.pie3d-side,
+.pie3d-radial-side {
+  shape-rendering: geometricPrecision;
+}
+
+.pie3d-hover-note {
+  max-width: 260px;
+  margin-top: -2px;
+  color: rgba(226, 232, 240, 0.76);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.pie3d-tooltip {
+  position: fixed;
+  z-index: 9999;
+  left: 0;
+  top: 0;
+  max-width: 260px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 12px;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(12px);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  white-space: normal;
+}
+
+.pie3d-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.master-donut-card .pie3d-tooltip-wrap,
+.account-pie-card .pie3d-tooltip-wrap,
+.chart-panel .pie3d-tooltip-wrap,
+.account-detail-card .pie3d-tooltip-wrap,
+.sunburst-placeholder .pie3d-tooltip-wrap {
+  grid-template-columns: 1fr !important;
+}
+
+@media (max-width: 760px) {
+  .pie3d-hover-note {
+    font-size: 0.72rem;
+  }
+}
