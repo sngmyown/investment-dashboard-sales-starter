@@ -375,27 +375,32 @@ function build3DFullPie(entries, colors, options = {}) {
   const ry = large ? 62 : 48;
   const depth = large ? 54 : 42;
   const shadowY = cy + depth + (large ? 20 : 16);
+  const [rawKey, rawValue] = entries[0] || ["전체", 0];
+  const value = Number(rawValue || 0);
   const color = colors[0] || "#0ea5e9";
   const top = shadeColor(color, 0.08);
   const side = shadeColor(color, -0.16);
   const sideDark = shadeColor(color, -0.28);
   const edge = shadeColor(color, -0.08);
   const highlight = rgba(shadeColor(color, 0.55), 0.24);
+  const tooltip = `${label(rawKey)} · ${pct(100)} · ${money(value)}`;
+  const tooltipAttr = escapeHtml(tooltip);
   const frontSide = `M ${(cx - rx).toFixed(2)} ${cy.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 0 0 ${(cx + rx).toFixed(2)} ${cy.toFixed(2)} L ${(cx + rx).toFixed(2)} ${(cy + depth).toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 0 1 ${(cx - rx).toFixed(2)} ${(cy + depth).toFixed(2)} Z`;
 
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
       <ellipse cx="${cx}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.46}" fill="rgba(2, 6, 23, 0.16)"></ellipse>
-      <path d="${frontSide}" fill="${side}" opacity="0.98"></path>
+      <path class="pie3d-slice pie3d-side" data-pie-tooltip="${tooltipAttr}" tabindex="0" d="${frontSide}" fill="${side}" opacity="0.98"><title>${tooltipAttr}</title></path>
       <ellipse cx="${cx}" cy="${cy + depth}" rx="${rx}" ry="${ry}" fill="${sideDark}" opacity="0.22"></ellipse>
-      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${top}" stroke="${edge}" stroke-width="1.15"></ellipse>
+      <ellipse class="pie3d-slice pie3d-top" data-pie-tooltip="${tooltipAttr}" tabindex="0" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${top}" stroke="${edge}" stroke-width="1.15"><title>${tooltipAttr}</title></ellipse>
       <ellipse cx="${cx}" cy="${cy - (large ? 5 : 4)}" rx="${rx * 0.84}" ry="${ry * 0.55}" fill="${highlight}"></ellipse>
     </svg>
   `;
 }
 
 function build3DPie(entries, colors, options = {}) {
-  const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
+  const positiveEntries = entries.filter(([, value]) => Number(value || 0) > 0);
+  const total = positiveEntries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
   const large = Boolean(options.large);
   const width = large ? 320 : 250;
   const height = large ? 250 : 205;
@@ -407,13 +412,13 @@ function build3DPie(entries, colors, options = {}) {
   const explode = large ? 10 : 8;
   const rotation = -Math.PI / 2 - 0.42;
   const shadowY = cyBase + depth + (large ? 20 : 16);
-  const positiveEntries = entries.filter(([, value]) => Number(value || 0) > 0);
+
   if (positiveEntries.length === 1) {
     return build3DFullPie(positiveEntries, colors, options);
   }
 
   let cursor = rotation;
-  const slices = entries.map(([key, rawValue], index) => {
+  const slices = positiveEntries.map(([key, rawValue], index) => {
     const value = Number(rawValue || 0);
     const sliceAngle = total ? (value / total) * Math.PI * 2 : 0;
     const start = cursor;
@@ -425,9 +430,14 @@ function build3DPie(entries, colors, options = {}) {
     const cx = cxBase + offsetX;
     const cy = cyBase + offsetY;
     const color = colors[index % colors.length];
+    const share = total ? (value / total) * 100 : 0;
+    const tooltip = `${label(key)} · ${pct(share)} · ${money(value)}`;
     return {
       key,
       value,
+      share,
+      tooltip,
+      tooltipAttr: escapeHtml(tooltip),
       start,
       end,
       mid,
@@ -445,27 +455,34 @@ function build3DPie(entries, colors, options = {}) {
   const sideParts = [];
   const topParts = [];
 
-  slices.forEach((slice, index) => {
-    visibleFrontIntervals(slice.start, slice.end).forEach(([from, to], intervalIndex) => {
-      sideParts.push(`<path d="${pathOuterSide(slice.cx, slice.cy, rx, ry, depth, from, to)}" fill="${slice.side}" opacity="0.98"></path>`);
+  slices.forEach((slice) => {
+    const tooltip = slice.tooltipAttr;
+
+    // 전체 외곽 벽면을 항상 채운다.
+    // 기존에는 전면으로 판단된 구간만 그려 일부 색상에서 벽면이 빈 것처럼 보였다.
+    sideParts.push({
+      z: Math.sin(slice.mid),
+      html: `<path class="pie3d-slice pie3d-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathOuterSide(slice.cx, slice.cy, rx, ry, depth, slice.start, slice.end)}" fill="${slice.side}" opacity="0.99"><title>${tooltip}</title></path>`
     });
 
-    const startVisible = Math.sin(slice.start) > -0.14;
-    const endVisible = Math.sin(slice.end) > -0.14;
-    if (startVisible) {
-      sideParts.push(`<path d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" opacity="0.94"></path>`);
-    }
-    if (endVisible) {
-      sideParts.push(`<path d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${slice.sideDark}" opacity="0.9"></path>`);
-    }
+    // 시작/끝 방사형 벽면도 항상 채워 조각 사이 빈 틈을 제거한다.
+    sideParts.push({
+      z: Math.sin(slice.start) + 0.001,
+      html: `<path class="pie3d-slice pie3d-side pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" opacity="0.96"><title>${tooltip}</title></path>`
+    });
+    sideParts.push({
+      z: Math.sin(slice.end) + 0.001,
+      html: `<path class="pie3d-slice pie3d-side pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${slice.sideDark}" opacity="0.94"><title>${tooltip}</title></path>`
+    });
   });
 
   slices
     .slice()
     .sort((a, b) => Math.sin(a.mid) - Math.sin(b.mid))
     .forEach((slice) => {
-      topParts.push(`<path d="${pathTopSlice(slice.cx, slice.cy, rx, ry, slice.start, slice.end)}" fill="${slice.top}" stroke="${slice.edge}" stroke-width="1.1"></path>`);
-      topParts.push(`<path d="${pathTopSlice(slice.cx, slice.cy - (large ? 4 : 3), rx * 0.985, ry * 0.78, slice.start, slice.end)}" fill="${slice.highlight}"></path>`);
+      const tooltip = slice.tooltipAttr;
+      topParts.push(`<path class="pie3d-slice pie3d-top" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy, rx, ry, slice.start, slice.end)}" fill="${slice.top}" stroke="${slice.edge}" stroke-width="1.1"><title>${tooltip}</title></path>`);
+      topParts.push(`<path class="pie3d-highlight" d="${pathTopSlice(slice.cx, slice.cy - (large ? 4 : 3), rx * 0.985, ry * 0.78, slice.start, slice.end)}" fill="${slice.highlight}"></path>`);
     });
 
   const shadow = `<ellipse cx="${cxBase}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.46}" fill="rgba(2, 6, 23, 0.16)"></ellipse>`;
@@ -473,7 +490,7 @@ function build3DPie(entries, colors, options = {}) {
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
       ${shadow}
-      ${sideParts.join("")}
+      ${sideParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
       ${topParts.join("")}
     </svg>
   `;
@@ -1970,8 +1987,8 @@ function donutChart(data, centerLabel, large, paletteName = "default") {
   const colors = chartPalette(paletteName);
   const chart = build3DPie(entries, colors, { large });
   return `
-    <div class="donut-wrap ${large ? "large" : ""} palette-${escapeHtml(paletteName)}" style="grid-template-columns:${large ? "280px minmax(0, 1fr)" : "220px minmax(0, 1fr)"}; align-items:center;">
-      <div class="pie3d-column" style="display:flex; flex-direction:column; align-items:center; gap:${large ? 14 : 12}px; min-width:0;">
+    <div class="donut-wrap ${large ? "large" : ""} palette-${escapeHtml(paletteName)} pie3d-tooltip-wrap" style="grid-template-columns:1fr; justify-items:center; align-items:center;">
+      <div class="pie3d-column" style="display:flex; flex-direction:column; align-items:center; gap:${large ? 14 : 12}px; min-width:0; width:100%;">
         <div class="pie3d-stage ${large ? "large" : ""}" style="width:${large ? 280 : 220}px; max-width:100%;">
           ${chart}
         </div>
@@ -1979,17 +1996,7 @@ function donutChart(data, centerLabel, large, paletteName = "default") {
           <span style="font-size:${large ? "0.86rem" : "0.78rem"}; color:#475569; font-weight:700; letter-spacing:0.02em;">${escapeHtml(centerLabel)}</span>
           <strong style="font-size:${large ? "1.25rem" : "1.02rem"}; color:#0f172a; letter-spacing:-0.04em; font-variant-numeric:tabular-nums;">${money(total)}</strong>
         </div>
-      </div>
-      <div class="legend-list">
-        ${entries.map(([key, value], index) => {
-          const share = total ? (Number(value) / total) * 100 : 0;
-          return `
-            <div class="legend-row">
-              <span><i style="background:${colors[index % colors.length]}"></i>${label(key)}</span>
-              <strong>${pct(share)}</strong>
-            </div>
-          `;
-        }).join("")}
+        <div class="pie3d-hover-note">파이 조각에 마우스를 올리면 이름·비중·금액이 표시됩니다.</div>
       </div>
     </div>
   `;
@@ -2336,7 +2343,55 @@ function startEmptyData() {
   render();
 }
 
+
+function attachPie3DTooltips() {
+  let tooltip = document.getElementById("pie3d-tooltip");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.id = "pie3d-tooltip";
+    tooltip.className = "pie3d-tooltip";
+    tooltip.setAttribute("role", "status");
+    tooltip.setAttribute("aria-live", "polite");
+    document.body.appendChild(tooltip);
+  }
+
+  const show = (target, event) => {
+    const text = target.dataset.pieTooltip;
+    if (!text) return;
+    tooltip.textContent = text;
+    tooltip.classList.add("show");
+    move(event);
+  };
+
+  const move = (event) => {
+    if (!event) return;
+    const offset = 14;
+    const maxX = window.innerWidth - tooltip.offsetWidth - 12;
+    const maxY = window.innerHeight - tooltip.offsetHeight - 12;
+    const x = Math.min(maxX, Math.max(12, event.clientX + offset));
+    const y = Math.min(maxY, Math.max(12, event.clientY + offset));
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  };
+
+  const hide = () => {
+    tooltip.classList.remove("show");
+  };
+
+  document.querySelectorAll("[data-pie-tooltip]").forEach((slice) => {
+    slice.addEventListener("mouseenter", (event) => show(slice, event));
+    slice.addEventListener("mousemove", move);
+    slice.addEventListener("mouseleave", hide);
+    slice.addEventListener("focus", (event) => {
+      const rect = slice.getBoundingClientRect();
+      show(slice, { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 });
+    });
+    slice.addEventListener("blur", hide);
+  });
+}
+
 function attachViewEvents() {
+  attachPie3DTooltips();
   const fxSettingsFormEl = document.getElementById("fx-settings-form");
   if (fxSettingsFormEl) {
     fxSettingsFormEl.addEventListener("submit", handleFxSettingsSubmit);
@@ -2768,7 +2823,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "portfolio-dashboard-fx-timeline-v13",
+    version: "portfolio-dashboard-pie-wall-tooltip-v16",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
