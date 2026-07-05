@@ -2524,3 +2524,32 @@ tr.editing-row {
 
 /* arc-face-runtime-fix-v19
    V18의 pointOnEllipse 함수명 오류를 ellipsePoint로 수정한 런타임 복구 버전 */
+
+
+/* account-color-unify-v20 : 계좌 및 비중 화면의 계좌별 파이차트 색상 통일 */
+
+
+/* account-color-arc-fill-v21
+   V20 계좌별 색상 통일 유지 + 모든 조각의 바깥쪽 원호면을 실제 색상 밴드로 채움 */
+.pie3d-arc-fill-band {
+  opacity: 1 !important;
+  stroke-opacity: 1 !important;
+  fill: none !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: auto;
+}
+
+.pie3d-arc-face {
+  opacity: 1 !important;
+  fill-opacity: 1 !important;
+  stroke: none !important;
+  shape-rendering: geometricPrecision;
+  pointer-events: auto;
+}
+
+.pie3d-arc-fill-band:hover,
+.pie3d-arc-fill-band:focus-visible,
+.pie3d-arc-face:hover,
+.pie3d-arc-face:focus-visible {
+  filter: brightness(1.12) saturate(1.14);
+}
