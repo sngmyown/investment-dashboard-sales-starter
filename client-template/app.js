@@ -2887,7 +2887,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "portfolio-dashboard-allocation-number-layout-v24",
+    version: "portfolio-dashboard-overview-fit-v25",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
