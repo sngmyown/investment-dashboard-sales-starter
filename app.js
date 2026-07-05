@@ -430,108 +430,29 @@ function pathRadialSide(cx, cy, rx, ry, depth, angle) {
 function build3DFullPie(entries, colors, options = {}) {
   const large = Boolean(options.large);
   const width = large ? 320 : 250;
-  const height = large ? 250 : 205;
+  const height = large ? 232 : 190;
   const cx = width / 2;
-  const cy = large ? 92 : 76;
-  const rx = large ? 116 : 90;
+  const cy = large ? 96 : 78;
+  const rx = large ? 112 : 88;
   const ry = large ? 62 : 48;
-  const depth = large ? 54 : 42;
-  const shadowY = cy + depth + (large ? 20 : 16);
+  const depth = large ? 34 : 28;
   const [rawKey, rawValue] = entries[0] || ["전체", 0];
   const value = Number(rawValue || 0);
   const color = colors[0] || "#0ea5e9";
   const top = shadeColor(color, 0.08);
-  const side = shadeColor(color, -0.16);
-  const sideDark = shadeColor(color, -0.28);
-  const edge = shadeColor(color, -0.08);
-  const highlight = rgba(shadeColor(color, 0.55), 0.24);
+  const side = shadeColor(color, -0.18);
+  const edge = shadeColor(color, -0.10);
   const tooltip = `${label(rawKey)} · ${pct(100)} · ${money(value)}`;
   const tooltipAttr = escapeHtml(tooltip);
-  const frontSide = `M ${(cx - rx).toFixed(2)} ${cy.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 0 0 ${(cx + rx).toFixed(2)} ${cy.toFixed(2)} L ${(cx + rx).toFixed(2)} ${(cy + depth).toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 0 1 ${(cx - rx).toFixed(2)} ${(cy + depth).toFixed(2)} Z`;
 
   return `
-    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
-      <ellipse cx="${cx}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.46}" fill="rgba(2, 6, 23, 0.16)"></ellipse>
-      <path class="pie3d-slice pie3d-side" data-pie-tooltip="${tooltipAttr}" tabindex="0" d="${frontSide}" fill="${side}" opacity="0.98"><title>${tooltipAttr}</title></path>
-      <ellipse cx="${cx}" cy="${cy + depth}" rx="${rx}" ry="${ry}" fill="${sideDark}" opacity="0.22"></ellipse>
-      <ellipse class="pie3d-slice pie3d-top" data-pie-tooltip="${tooltipAttr}" tabindex="0" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${top}" stroke="${edge}" stroke-width="1.15"><title>${tooltipAttr}</title></ellipse>
-      <ellipse cx="${cx}" cy="${cy - (large ? 5 : 4)}" rx="${rx * 0.84}" ry="${ry * 0.55}" fill="${highlight}"></ellipse>
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="stable unified pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.14));">
+      <ellipse cx="${cx}" cy="${cy + depth + 18}" rx="${rx * 0.96}" ry="${ry * 0.38}" fill="rgba(2, 6, 23, 0.16)"></ellipse>
+      <ellipse class="pie3d-slice pie3d-solid-side" data-pie-tooltip="${tooltipAttr}" tabindex="0" cx="${cx}" cy="${cy + depth}" rx="${rx}" ry="${ry}" fill="${side}" opacity="0.92"><title>${tooltipAttr}</title></ellipse>
+      <ellipse class="pie3d-slice pie3d-solid-top" data-pie-tooltip="${tooltipAttr}" tabindex="0" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${top}" stroke="${edge}" stroke-width="1.1"><title>${tooltipAttr}</title></ellipse>
+      <ellipse cx="${cx - rx * 0.18}" cy="${cy - ry * 0.18}" rx="${rx * 0.54}" ry="${ry * 0.22}" fill="rgba(255,255,255,0.16)"></ellipse>
     </svg>
   `;
-}
-
-
-
-function normalizeAngleTwoPi(angle) {
-  const twoPi = Math.PI * 2;
-  return ((angle % twoPi) + twoPi) % twoPi;
-}
-
-function isFrontArcAngle(angle) {
-  const normalized = normalizeAngleTwoPi(angle);
-  return normalized > 0 && normalized < Math.PI;
-}
-
-function arcLinePath(cx, cy, rx, ry, start, end) {
-  const startPoint = ellipsePoint(cx, cy, rx, ry, start);
-  const endPoint = ellipsePoint(cx, cy, rx, ry, end);
-  const largeArc = end - start > Math.PI ? 1 : 0;
-  return `M ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 1 ${endPoint.x.toFixed(2)} ${endPoint.y.toFixed(2)}`;
-}
-
-function arcFaceBands(slice, rx, ry, depth) {
-  const span = Math.max(0.001, slice.end - slice.start);
-  const bandCount = Math.max(2, Math.ceil(span / (Math.PI / 2)));
-  const bands = [];
-
-  for (let i = 0; i < bandCount; i += 1) {
-    const a1 = slice.start + (span * i) / bandCount;
-    const a2 = slice.start + (span * (i + 1)) / bandCount;
-    const mid = (a1 + a2) / 2;
-    const fill = isFrontArcAngle(mid) ? slice.side : slice.sideDark;
-
-    bands.push({
-      z: Math.sin(mid) - 0.25,
-      html: `<path class="pie3d-slice pie3d-arc-fill-band" data-pie-tooltip="${slice.tooltipAttr}" tabindex="0" d="${arcLinePath(slice.cx, slice.cy + depth * 0.52, rx, ry, a1, a2)}" fill="none" stroke="${fill}" stroke-width="${(depth * 0.98).toFixed(2)}" stroke-linecap="butt" stroke-linejoin="round" opacity="1"><title>${slice.tooltipAttr}</title></path>`
-    });
-  }
-
-  return bands;
-}
-
-function arcFacePanels(slice, rx, ry, depth, steps = 18) {
-  const span = Math.max(0.001, slice.end - slice.start);
-  const panelCount = Math.max(4, Math.ceil((span / (Math.PI * 2)) * steps));
-  const panels = [];
-
-  for (let i = 0; i < panelCount; i += 1) {
-    const a1 = slice.start + (span * i) / panelCount;
-    const a2 = slice.start + (span * (i + 1)) / panelCount;
-    const mid = (a1 + a2) / 2;
-
-    const p1Top = ellipsePoint(slice.cx, slice.cy, rx, ry, a1);
-    const p2Top = ellipsePoint(slice.cx, slice.cy, rx, ry, a2);
-    const p1Bottom = ellipsePoint(slice.cx, slice.cy + depth, rx, ry, a1);
-    const p2Bottom = ellipsePoint(slice.cx, slice.cy + depth, rx, ry, a2);
-    const largeArc = Math.abs(a2 - a1) > Math.PI ? 1 : 0;
-
-    const fill = isFrontArcAngle(mid) ? slice.side : slice.sideDark;
-
-    const d = [
-      `M ${p1Top.x.toFixed(2)} ${p1Top.y.toFixed(2)}`,
-      `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 1 ${p2Top.x.toFixed(2)} ${p2Top.y.toFixed(2)}`,
-      `L ${p2Bottom.x.toFixed(2)} ${p2Bottom.y.toFixed(2)}`,
-      `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 0 ${p1Bottom.x.toFixed(2)} ${p1Bottom.y.toFixed(2)}`,
-      "Z"
-    ].join(" ");
-
-    panels.push({
-      z: Math.sin(mid),
-      html: `<path class="pie3d-slice pie3d-arc-face" data-pie-tooltip="${slice.tooltipAttr}" tabindex="0" d="${d}" fill="${fill}" stroke="none" opacity="1"><title>${slice.tooltipAttr}</title></path>`
-    });
-  }
-
-  return panels;
 }
 
 function build3DPie(entries, colors, options = {}) {
@@ -539,15 +460,15 @@ function build3DPie(entries, colors, options = {}) {
   const total = positiveEntries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
   const large = Boolean(options.large);
   const width = large ? 320 : 250;
-  const height = large ? 250 : 205;
+  const height = large ? 232 : 190;
   const cxBase = width / 2;
-  const cyBase = large ? 92 : 76;
-  const rx = large ? 116 : 90;
+  const cyBase = large ? 96 : 78;
+  const rx = large ? 112 : 88;
   const ry = large ? 62 : 48;
-  const depth = large ? 54 : 42;
-  const explode = large ? 10 : 8;
-  const rotation = -Math.PI / 2 - 0.42;
-  const shadowY = cyBase + depth + (large ? 20 : 16);
+  const depth = large ? 34 : 28;
+  const explode = large ? 5 : 4;
+  const rotation = -Math.PI / 2 - 0.36;
+  const shadowY = cyBase + depth + (large ? 18 : 15);
 
   if (positiveEntries.length === 1) {
     return build3DFullPie(positiveEntries, colors, options);
@@ -562,12 +483,13 @@ function build3DPie(entries, colors, options = {}) {
     cursor = end;
     const mid = (start + end) / 2;
     const offsetX = Math.cos(mid) * explode;
-    const offsetY = Math.sin(mid) * explode * 0.78;
+    const offsetY = Math.sin(mid) * explode * 0.58;
     const cx = cxBase + offsetX;
     const cy = cyBase + offsetY;
     const color = colors[index % colors.length];
     const share = total ? (value / total) * 100 : 0;
     const tooltip = `${label(key)} · ${pct(share)} · ${money(value)}`;
+
     return {
       key,
       value,
@@ -580,45 +502,40 @@ function build3DPie(entries, colors, options = {}) {
       cx,
       cy,
       color,
-      top: shadeColor(color, 0.08),
-      bottom: shadeColor(color, -0.24),
-      side: shadeColor(color, -0.16),
-      sideDark: shadeColor(color, -0.34),
-      sideDeep: shadeColor(color, -0.42),
-      edge: shadeColor(color, -0.08),
-      highlight: rgba(shadeColor(color, 0.55), 0.22)
+      top: shadeColor(color, 0.06),
+      side: shadeColor(color, -0.20),
+      edge: shadeColor(color, -0.10),
+      highlight: rgba(shadeColor(color, 0.55), 0.16)
     };
   });
 
   const bottomParts = [];
-  const arcBandParts = [];
-  const arcFaceParts = [];
-  const radialParts = [];
+  const wallParts = [];
   const topParts = [];
 
   slices.forEach((slice) => {
     const tooltip = slice.tooltipAttr;
 
+    // 안정형 구조: 원호면을 잘게 쪼개지 않고, 조각별 하단 복제면과 연결 벽면만 사용한다.
+    // 이 방식은 색상 통일을 유지하면서 SVG 깨짐/빈틈 현상을 줄인다.
     bottomParts.push({
-      z: Math.sin(slice.mid) - 3,
-      html: `<path class="pie3d-slice pie3d-bottom" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy + depth, rx, ry, slice.start, slice.end)}" fill="${slice.bottom}" opacity="1"><title>${tooltip}</title></path>`
+      z: Math.sin(slice.mid) - 2,
+      html: `<path class="pie3d-slice pie3d-solid-bottom" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy + depth, rx, ry, slice.start, slice.end)}" fill="${slice.side}" opacity="0.94"><title>${tooltip}</title></path>`
     });
 
-    // 핵심 수정: 원호면을 두꺼운 색상 밴드로 먼저 칠한다.
-    // 이 레이어가 실제로 색을 꽉 채우고, 아래 패널은 곡면 형태를 보강한다.
-    arcBandParts.push(...arcFaceBands(slice, rx, ry, depth));
-
-    // 곡면 패널은 stroke를 제거해서 세로 줄이 과하게 보이지 않도록 한다.
-    arcFaceParts.push(...arcFacePanels(slice, rx, ry, depth, large ? 48 : 40));
-
-    radialParts.push({
-      z: Math.sin(slice.start) - 0.4,
-      html: `<path class="pie3d-slice pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="0.98"><title>${tooltip}</title></path>`
+    wallParts.push({
+      z: Math.sin(slice.mid) - 1,
+      html: `<path class="pie3d-slice pie3d-solid-wall" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathOuterSide(slice.cx, slice.cy, rx, ry, depth, slice.start, slice.end)}" fill="${slice.side}" stroke="${shadeColor(slice.side, -0.08)}" stroke-width="0.55" opacity="0.96"><title>${tooltip}</title></path>`
     });
 
-    radialParts.push({
-      z: Math.sin(slice.end) - 0.4,
-      html: `<path class="pie3d-slice pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="0.98"><title>${tooltip}</title></path>`
+    wallParts.push({
+      z: Math.sin(slice.start) - 0.5,
+      html: `<path class="pie3d-slice pie3d-solid-cut" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${shadeColor(slice.side, -0.12)}" opacity="0.88"><title>${tooltip}</title></path>`
+    });
+
+    wallParts.push({
+      z: Math.sin(slice.end) - 0.5,
+      html: `<path class="pie3d-slice pie3d-solid-cut" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${shadeColor(slice.side, -0.12)}" opacity="0.88"><title>${tooltip}</title></path>`
     });
   });
 
@@ -627,19 +544,17 @@ function build3DPie(entries, colors, options = {}) {
     .sort((a, b) => Math.sin(a.mid) - Math.sin(b.mid))
     .forEach((slice) => {
       const tooltip = slice.tooltipAttr;
-      topParts.push(`<path class="pie3d-slice pie3d-top" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy, rx, ry, slice.start, slice.end)}" fill="${slice.top}" stroke="${slice.edge}" stroke-width="1.1"><title>${tooltip}</title></path>`);
-      topParts.push(`<path class="pie3d-highlight" d="${pathTopSlice(slice.cx, slice.cy - (large ? 4 : 3), rx * 0.985, ry * 0.78, slice.start, slice.end)}" fill="${slice.highlight}"></path>`);
+      topParts.push(`<path class="pie3d-slice pie3d-solid-top" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy, rx, ry, slice.start, slice.end)}" fill="${slice.top}" stroke="${slice.edge}" stroke-width="1.15"><title>${tooltip}</title></path>`);
+      topParts.push(`<path class="pie3d-solid-highlight" d="${pathTopSlice(slice.cx, slice.cy - (large ? 3 : 2), rx * 0.985, ry * 0.74, slice.start, slice.end)}" fill="${slice.highlight}"></path>`);
     });
 
-  const shadow = `<ellipse cx="${cxBase}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.46}" fill="rgba(2, 6, 23, 0.16)"></ellipse>`;
+  const shadow = `<ellipse cx="${cxBase}" cy="${shadowY}" rx="${rx * 0.98}" ry="${ry * 0.42}" fill="rgba(2, 6, 23, 0.15)"></ellipse>`;
 
   return `
-    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="stable unified pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
       ${shadow}
       ${bottomParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
-      ${arcBandParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
-      ${arcFaceParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
-      ${radialParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
+      ${wallParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
       ${topParts.join("")}
     </svg>
   `;
@@ -2972,7 +2887,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "portfolio-dashboard-allocation-account-palette-v22",
+    version: "portfolio-dashboard-stable-unified-pie-v23",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
