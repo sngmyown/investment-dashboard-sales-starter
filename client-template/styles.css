@@ -2520,3 +2520,7 @@ tr.editing-row {
 .pie3d-radial-side {
   opacity: 0.98 !important;
 }
+
+
+/* arc-face-runtime-fix-v19
+   V18의 pointOnEllipse 함수명 오류를 ellipsePoint로 수정한 런타임 복구 버전 */
