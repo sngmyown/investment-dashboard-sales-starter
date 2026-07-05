@@ -2556,3 +2556,38 @@ tr.editing-row {
 
 
 /* allocation-account-palette-v22 : 계좌 및 비중 섹션의 계좌별 파이차트 팔레트 강제 통일 */
+
+
+/* stable-unified-pie-v23
+   계좌별 통합 색상 유지 + 깨져 보이던 분할 원호면/밴드 레이어 제거 후 안정형 파이 구조 적용 */
+.pie3d-arc-fill-band,
+.pie3d-arc-face {
+  display: none !important;
+}
+
+.pie3d-solid-bottom,
+.pie3d-solid-wall,
+.pie3d-solid-cut,
+.pie3d-solid-side,
+.pie3d-solid-top {
+  shape-rendering: geometricPrecision;
+  vector-effect: non-scaling-stroke;
+  pointer-events: auto;
+}
+
+.pie3d-solid-wall,
+.pie3d-solid-bottom,
+.pie3d-solid-side {
+  fill-opacity: 0.96;
+}
+
+.pie3d-solid-top {
+  transition: filter 0.16s ease, transform 0.16s ease;
+}
+
+.pie3d-solid-top:hover,
+.pie3d-solid-top:focus-visible,
+.pie3d-solid-wall:hover,
+.pie3d-solid-wall:focus-visible {
+  filter: brightness(1.08) saturate(1.08);
+}
