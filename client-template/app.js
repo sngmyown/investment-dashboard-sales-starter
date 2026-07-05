@@ -398,6 +398,54 @@ function build3DFullPie(entries, colors, options = {}) {
   `;
 }
 
+
+function normalizeAngleTwoPi(angle) {
+  const twoPi = Math.PI * 2;
+  return ((angle % twoPi) + twoPi) % twoPi;
+}
+
+function isFrontArcAngle(angle) {
+  const normalized = normalizeAngleTwoPi(angle);
+  return normalized > 0 && normalized < Math.PI;
+}
+
+function arcFacePanels(slice, rx, ry, depth, steps = 18) {
+  const span = Math.max(0.001, slice.end - slice.start);
+  const panelCount = Math.max(3, Math.ceil((span / (Math.PI * 2)) * steps));
+  const panels = [];
+
+  for (let i = 0; i < panelCount; i += 1) {
+    const a1 = slice.start + (span * i) / panelCount;
+    const a2 = slice.start + (span * (i + 1)) / panelCount;
+    const mid = (a1 + a2) / 2;
+
+    const p1Top = pointOnEllipse(slice.cx, slice.cy, rx, ry, a1);
+    const p2Top = pointOnEllipse(slice.cx, slice.cy, rx, ry, a2);
+    const p1Bottom = pointOnEllipse(slice.cx, slice.cy + depth, rx, ry, a1);
+    const p2Bottom = pointOnEllipse(slice.cx, slice.cy + depth, rx, ry, a2);
+    const largeArc = Math.abs(a2 - a1) > Math.PI ? 1 : 0;
+
+    const darkness = isFrontArcAngle(mid) ? 0.03 : 0.13;
+    const opacity = isFrontArcAngle(mid) ? 1 : 0.96;
+    const fill = shadeColor(slice.side, -darkness);
+
+    const d = [
+      `M ${p1Top.x.toFixed(2)} ${p1Top.y.toFixed(2)}`,
+      `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 1 ${p2Top.x.toFixed(2)} ${p2Top.y.toFixed(2)}`,
+      `L ${p2Bottom.x.toFixed(2)} ${p2Bottom.y.toFixed(2)}`,
+      `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 0 ${p1Bottom.x.toFixed(2)} ${p1Bottom.y.toFixed(2)}`,
+      "Z"
+    ].join(" ");
+
+    panels.push({
+      z: Math.sin(mid),
+      html: `<path class="pie3d-slice pie3d-arc-face" data-pie-tooltip="${slice.tooltipAttr}" tabindex="0" d="${d}" fill="${fill}" stroke="${shadeColor(fill, -0.08)}" stroke-width="0.45" opacity="${opacity}"><title>${slice.tooltipAttr}</title></path>`
+    });
+  }
+
+  return panels;
+}
+
 function build3DPie(entries, colors, options = {}) {
   const positiveEntries = entries.filter(([, value]) => Number(value || 0) > 0);
   const total = positiveEntries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
@@ -445,42 +493,42 @@ function build3DPie(entries, colors, options = {}) {
       cy,
       color,
       top: shadeColor(color, 0.08),
-      bottom: shadeColor(color, -0.20),
+      bottom: shadeColor(color, -0.22),
       side: shadeColor(color, -0.14),
-      sideDark: shadeColor(color, -0.30),
-      sideDeep: shadeColor(color, -0.38),
+      sideDark: shadeColor(color, -0.31),
+      sideDeep: shadeColor(color, -0.40),
       edge: shadeColor(color, -0.08),
       highlight: rgba(shadeColor(color, 0.55), 0.22)
     };
   });
 
-  const wallParts = [];
+  const bottomParts = [];
+  const arcFaceParts = [];
+  const radialParts = [];
   const topParts = [];
 
   slices.forEach((slice) => {
     const tooltip = slice.tooltipAttr;
 
-    // 모든 파이 조각에 하단 면을 먼저 깔아 벽면/틈이 비어 보이는 현상을 방지한다.
-    wallParts.push({
-      z: Math.sin(slice.mid) - 2,
+    // 하단 면: 원호면 뒤쪽 빈틈을 막기 위한 기초 면
+    bottomParts.push({
+      z: Math.sin(slice.mid) - 3,
       html: `<path class="pie3d-slice pie3d-bottom" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy + depth, rx, ry, slice.start, slice.end)}" fill="${slice.bottom}" opacity="0.98"><title>${tooltip}</title></path>`
     });
 
-    // 모든 파이 조각의 외곽 벽면을 항상 색으로 채운다.
-    wallParts.push({
-      z: Math.sin(slice.mid) - 1,
-      html: `<path class="pie3d-slice pie3d-side pie3d-outer-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathOuterSide(slice.cx, slice.cy, rx, ry, depth, slice.start, slice.end)}" fill="${slice.side}" stroke="${slice.sideDeep}" stroke-width="0.8" opacity="1"><title>${tooltip}</title></path>`
+    // 핵심 수정: 바깥쪽 둥근 원호면을 하나의 큰 path가 아니라 여러 짧은 패널로 쪼개 전체 각도를 채운다.
+    // 이 원호면이 사용자가 말한 "파이 조각의 벽"이다.
+    arcFaceParts.push(...arcFacePanels(slice, rx, ry, depth, large ? 42 : 34));
+
+    // 조각의 시작/끝 절단면
+    radialParts.push({
+      z: Math.sin(slice.start) - 0.4,
+      html: `<path class="pie3d-slice pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="0.98"><title>${tooltip}</title></path>`
     });
 
-    // 모든 파이 조각의 시작/끝 방사형 벽면도 항상 채운다.
-    wallParts.push({
-      z: Math.sin(slice.start) - 0.5,
-      html: `<path class="pie3d-slice pie3d-side pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="1"><title>${tooltip}</title></path>`
-    });
-
-    wallParts.push({
-      z: Math.sin(slice.end) - 0.5,
-      html: `<path class="pie3d-slice pie3d-side pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="1"><title>${tooltip}</title></path>`
+    radialParts.push({
+      z: Math.sin(slice.end) - 0.4,
+      html: `<path class="pie3d-slice pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.end)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="0.98"><title>${tooltip}</title></path>`
     });
   });
 
@@ -498,7 +546,9 @@ function build3DPie(entries, colors, options = {}) {
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
       ${shadow}
-      ${wallParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
+      ${bottomParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
+      ${arcFaceParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
+      ${radialParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
       ${topParts.join("")}
     </svg>
   `;
@@ -2831,7 +2881,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "portfolio-dashboard-all-pie-walls-v17",
+    version: "portfolio-dashboard-arc-face-complete-v18",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
