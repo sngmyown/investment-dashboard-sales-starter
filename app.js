@@ -1,4 +1,4 @@
-/* 판매형 투자 관리 대시보드 스타터 v2
+/* 투자 계좌 대시보드 스타터 v2 v2
    - 실제 3계좌 입력/계산/시각화 구조
    - 외부 라이브러리 없음
    - 고객 금융 데이터는 브라우저 localStorage에 저장
@@ -419,10 +419,10 @@ function arcFacePanels(slice, rx, ry, depth, steps = 18) {
     const a2 = slice.start + (span * (i + 1)) / panelCount;
     const mid = (a1 + a2) / 2;
 
-    const p1Top = pointOnEllipse(slice.cx, slice.cy, rx, ry, a1);
-    const p2Top = pointOnEllipse(slice.cx, slice.cy, rx, ry, a2);
-    const p1Bottom = pointOnEllipse(slice.cx, slice.cy + depth, rx, ry, a1);
-    const p2Bottom = pointOnEllipse(slice.cx, slice.cy + depth, rx, ry, a2);
+    const p1Top = ellipsePoint(slice.cx, slice.cy, rx, ry, a1);
+    const p2Top = ellipsePoint(slice.cx, slice.cy, rx, ry, a2);
+    const p1Bottom = ellipsePoint(slice.cx, slice.cy + depth, rx, ry, a1);
+    const p2Bottom = ellipsePoint(slice.cx, slice.cy + depth, rx, ry, a2);
     const largeArc = Math.abs(a2 - a1) > Math.PI ? 1 : 0;
 
     const darkness = isFrontArcAngle(mid) ? 0.03 : 0.13;
@@ -2881,7 +2881,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "portfolio-dashboard-arc-face-complete-v18",
+    version: "portfolio-dashboard-arc-face-runtime-fix-v19",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
