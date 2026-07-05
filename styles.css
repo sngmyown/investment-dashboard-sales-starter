@@ -2470,3 +2470,28 @@ tr.editing-row {
     font-size: 0.72rem;
   }
 }
+
+
+/* all-pie-walls-fix-v17
+   모든 조각에 하단면/외곽벽/방사형벽을 강제 적용해 특정 조각이 비어 보이는 현상 제거 */
+.pie3d-bottom,
+.pie3d-outer-side,
+.pie3d-radial-side {
+  shape-rendering: geometricPrecision;
+  vector-effect: non-scaling-stroke;
+}
+
+.pie3d-bottom {
+  pointer-events: auto;
+}
+
+.pie3d-outer-side,
+.pie3d-radial-side {
+  opacity: 1 !important;
+  fill-opacity: 1 !important;
+}
+
+.pie3d-slice:hover,
+.pie3d-slice:focus-visible {
+  filter: brightness(1.08) saturate(1.1);
+}
