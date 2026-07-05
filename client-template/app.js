@@ -405,7 +405,6 @@ function build3DFullPie(entries, colors, options = {}) {
 }
 
 
-
 function normalizeAngleTwoPi(angle) {
   const twoPi = Math.PI * 2;
   return ((angle % twoPi) + twoPi) % twoPi;
@@ -416,36 +415,9 @@ function isFrontArcAngle(angle) {
   return normalized > 0 && normalized < Math.PI;
 }
 
-function arcLinePath(cx, cy, rx, ry, start, end) {
-  const startPoint = ellipsePoint(cx, cy, rx, ry, start);
-  const endPoint = ellipsePoint(cx, cy, rx, ry, end);
-  const largeArc = end - start > Math.PI ? 1 : 0;
-  return `M ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} 1 ${endPoint.x.toFixed(2)} ${endPoint.y.toFixed(2)}`;
-}
-
-function arcFaceBands(slice, rx, ry, depth) {
-  const span = Math.max(0.001, slice.end - slice.start);
-  const bandCount = Math.max(2, Math.ceil(span / (Math.PI / 2)));
-  const bands = [];
-
-  for (let i = 0; i < bandCount; i += 1) {
-    const a1 = slice.start + (span * i) / bandCount;
-    const a2 = slice.start + (span * (i + 1)) / bandCount;
-    const mid = (a1 + a2) / 2;
-    const fill = isFrontArcAngle(mid) ? slice.side : slice.sideDark;
-
-    bands.push({
-      z: Math.sin(mid) - 0.25,
-      html: `<path class="pie3d-slice pie3d-arc-fill-band" data-pie-tooltip="${slice.tooltipAttr}" tabindex="0" d="${arcLinePath(slice.cx, slice.cy + depth * 0.52, rx, ry, a1, a2)}" fill="none" stroke="${fill}" stroke-width="${(depth * 0.98).toFixed(2)}" stroke-linecap="butt" stroke-linejoin="round" opacity="1"><title>${slice.tooltipAttr}</title></path>`
-    });
-  }
-
-  return bands;
-}
-
 function arcFacePanels(slice, rx, ry, depth, steps = 18) {
   const span = Math.max(0.001, slice.end - slice.start);
-  const panelCount = Math.max(4, Math.ceil((span / (Math.PI * 2)) * steps));
+  const panelCount = Math.max(3, Math.ceil((span / (Math.PI * 2)) * steps));
   const panels = [];
 
   for (let i = 0; i < panelCount; i += 1) {
@@ -459,7 +431,9 @@ function arcFacePanels(slice, rx, ry, depth, steps = 18) {
     const p2Bottom = ellipsePoint(slice.cx, slice.cy + depth, rx, ry, a2);
     const largeArc = Math.abs(a2 - a1) > Math.PI ? 1 : 0;
 
-    const fill = isFrontArcAngle(mid) ? slice.side : slice.sideDark;
+    const darkness = isFrontArcAngle(mid) ? 0.03 : 0.13;
+    const opacity = isFrontArcAngle(mid) ? 1 : 0.96;
+    const fill = shadeColor(slice.side, -darkness);
 
     const d = [
       `M ${p1Top.x.toFixed(2)} ${p1Top.y.toFixed(2)}`,
@@ -471,7 +445,7 @@ function arcFacePanels(slice, rx, ry, depth, steps = 18) {
 
     panels.push({
       z: Math.sin(mid),
-      html: `<path class="pie3d-slice pie3d-arc-face" data-pie-tooltip="${slice.tooltipAttr}" tabindex="0" d="${d}" fill="${fill}" stroke="none" opacity="1"><title>${slice.tooltipAttr}</title></path>`
+      html: `<path class="pie3d-slice pie3d-arc-face" data-pie-tooltip="${slice.tooltipAttr}" tabindex="0" d="${d}" fill="${fill}" stroke="${shadeColor(fill, -0.08)}" stroke-width="0.45" opacity="${opacity}"><title>${slice.tooltipAttr}</title></path>`
     });
   }
 
@@ -525,17 +499,16 @@ function build3DPie(entries, colors, options = {}) {
       cy,
       color,
       top: shadeColor(color, 0.08),
-      bottom: shadeColor(color, -0.24),
-      side: shadeColor(color, -0.16),
-      sideDark: shadeColor(color, -0.34),
-      sideDeep: shadeColor(color, -0.42),
+      bottom: shadeColor(color, -0.22),
+      side: shadeColor(color, -0.14),
+      sideDark: shadeColor(color, -0.31),
+      sideDeep: shadeColor(color, -0.40),
       edge: shadeColor(color, -0.08),
       highlight: rgba(shadeColor(color, 0.55), 0.22)
     };
   });
 
   const bottomParts = [];
-  const arcBandParts = [];
   const arcFaceParts = [];
   const radialParts = [];
   const topParts = [];
@@ -543,18 +516,17 @@ function build3DPie(entries, colors, options = {}) {
   slices.forEach((slice) => {
     const tooltip = slice.tooltipAttr;
 
+    // 하단 면: 원호면 뒤쪽 빈틈을 막기 위한 기초 면
     bottomParts.push({
       z: Math.sin(slice.mid) - 3,
-      html: `<path class="pie3d-slice pie3d-bottom" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy + depth, rx, ry, slice.start, slice.end)}" fill="${slice.bottom}" opacity="1"><title>${tooltip}</title></path>`
+      html: `<path class="pie3d-slice pie3d-bottom" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathTopSlice(slice.cx, slice.cy + depth, rx, ry, slice.start, slice.end)}" fill="${slice.bottom}" opacity="0.98"><title>${tooltip}</title></path>`
     });
 
-    // 핵심 수정: 원호면을 두꺼운 색상 밴드로 먼저 칠한다.
-    // 이 레이어가 실제로 색을 꽉 채우고, 아래 패널은 곡면 형태를 보강한다.
-    arcBandParts.push(...arcFaceBands(slice, rx, ry, depth));
+    // 핵심 수정: 바깥쪽 둥근 원호면을 하나의 큰 path가 아니라 여러 짧은 패널로 쪼개 전체 각도를 채운다.
+    // 이 원호면이 사용자가 말한 "파이 조각의 벽"이다.
+    arcFaceParts.push(...arcFacePanels(slice, rx, ry, depth, large ? 42 : 34));
 
-    // 곡면 패널은 stroke를 제거해서 세로 줄이 과하게 보이지 않도록 한다.
-    arcFaceParts.push(...arcFacePanels(slice, rx, ry, depth, large ? 48 : 40));
-
+    // 조각의 시작/끝 절단면
     radialParts.push({
       z: Math.sin(slice.start) - 0.4,
       html: `<path class="pie3d-slice pie3d-radial-side" data-pie-tooltip="${tooltip}" tabindex="0" d="${pathRadialSide(slice.cx, slice.cy, rx, ry, depth, slice.start)}" fill="${slice.sideDark}" stroke="${slice.sideDeep}" stroke-width="0.65" opacity="0.98"><title>${tooltip}</title></path>`
@@ -581,7 +553,6 @@ function build3DPie(entries, colors, options = {}) {
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="3D pie chart" style="display:block; overflow:visible; filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.12));">
       ${shadow}
       ${bottomParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
-      ${arcBandParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
       ${arcFaceParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
       ${radialParts.sort((a, b) => a.z - b.z).map((part) => part.html).join("")}
       ${topParts.join("")}
@@ -2916,7 +2887,7 @@ function handleAccountSettingsSubmit(event) {
 function exportBackup() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: "portfolio-dashboard-account-color-arc-fill-v21",
+    version: "portfolio-dashboard-account-color-unify-v20",
     data: state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
