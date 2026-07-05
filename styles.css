@@ -2495,3 +2495,28 @@ tr.editing-row {
 .pie3d-slice:focus-visible {
   filter: brightness(1.08) saturate(1.1);
 }
+
+
+/* arc-face-complete-fix-v18
+   사용자가 말한 벽 = 바깥쪽 둥근 원호면.
+   모든 파이 조각의 원호면을 짧은 패널로 분할 렌더링해 전 구간을 색으로 채운다. */
+.pie3d-arc-face {
+  opacity: 1 !important;
+  fill-opacity: 1 !important;
+  shape-rendering: geometricPrecision;
+  vector-effect: non-scaling-stroke;
+  pointer-events: auto;
+}
+
+.pie3d-arc-face:hover,
+.pie3d-arc-face:focus-visible {
+  filter: brightness(1.1) saturate(1.12);
+}
+
+.pie3d-bottom {
+  opacity: 0.98 !important;
+}
+
+.pie3d-radial-side {
+  opacity: 0.98 !important;
+}
